@@ -181,3 +181,6 @@ body {
 .btn-ghost { background: transparent; }
 .error { color: var(--critical); }
 .success { color: var(--ok); }
+
+.banner-error { background: var(--critical-soft); border-color: #f2c0bc; color: var(--critical); }
+select.search { appearance: auto; }

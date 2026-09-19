@@ -1,7 +1,7 @@
 import { useState } from "react";
+import type { TimingRun } from "@orderwatch/shared";
 import { formatSeconds, startRun, stopRun } from "../lib/timing";
 import { useStore } from "../store";
-import type { TimingRun } from "../types";
 
 /**
  * Records what actually happened during this demo. OrderWatch makes no
