@@ -58,6 +58,7 @@ export function Attention() {
   async function approve() {
     if (!pending) return;
     setBusy(true);
+    setError(null);
     try {
       const out = await api.approve(pending.id, draft);
       setOutcome([out.notice, out.inventoryEffect].filter(Boolean).join(" "));
@@ -155,30 +156,45 @@ export function Attention() {
             ))}
           </select>
 
-          {!pending ? (
+          {!pending && !outcome ? (
             <div className="actions-row">
               <button className="btn btn-primary" disabled={busy} onClick={generate}>
-                {busy ? "Drafting…" : "Draft the message"}
+                {busy ? "Preparing…" : resolution === "inventory_correction" ? "Review stock correction" : "Draft the message"}
               </button>
             </div>
-          ) : (
+          ) : pending ? (
             <>
-              <textarea
+              {pending.action.type === "adjust_inventory" ? (
+                <section className="card" aria-label="Proposed inventory correction">
+                  <h3>Verify the physical stock count</h3>
+                  <p>This proposes adding stock to the demo. Approve only if the corrected count is accurate.</p>
+                  <dl className="kv">
+                    <dt>SKU</dt><dd>{pending.action.sku}</dd>
+                    <dt>Current stock</dt><dd>{pending.action.expectedStartingStock}</dd>
+                    <dt>Adjustment</dt><dd>+{pending.action.delta}</dd>
+                    <dt>Proposed stock</dt><dd>{(pending.action.expectedStartingStock ?? 0) + pending.action.delta}</dd>
+                    <dt>Committed</dt><dd>{pending.action.expectedCommitted}</dd>
+                    <dt>Available after</dt><dd>{(pending.action.expectedStartingStock ?? 0) + pending.action.delta - (pending.action.expectedCommitted ?? 0)}</dd>
+                  </dl>
+                  <p className="fine">Demo inventory only. No message will be sent or marketplace updated.</p>
+                </section>
+              ) : <textarea
                 className="paste"
+                aria-label="Customer message draft"
                 rows={12}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-              />
+              />}
               <div className="actions-row">
                 <button className="btn btn-primary" disabled={busy || !draft} onClick={approve}>
-                  Approve (simulated send)
+                  {pending.action.type === "adjust_inventory" ? "Approve demo stock correction" : "Approve (simulated send)"}
                 </button>
                 <button className="btn btn-ghost" onClick={() => setPending(null)}>
-                  Re-draft
+                  {pending.action.type === "adjust_inventory" ? "Review again" : "Re-draft"}
                 </button>
               </div>
             </>
-          )}
+          ) : null}
 
           {error && <p className="error">{error}</p>}
           {outcome && <p className="success">{outcome}</p>}

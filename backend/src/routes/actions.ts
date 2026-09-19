@@ -1,4 +1,4 @@
-import { type ActionRecord } from "@orderwatch/shared";
+import { snapshotFor, type ActionRecord } from "@orderwatch/shared";
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db";
@@ -43,6 +43,11 @@ actionsRouter.post("/:id/approve", (req, res) => {
       const product = tables.products.find((p) => p.sku === proposed.sku);
       if (!product) {
         return { status: 404, body: { error: `No product ${proposed.sku}` } };
+      }
+      const snapshot = snapshotFor(product, tables.orders);
+      if (proposed.expectedStartingStock === undefined || proposed.expectedCommitted === undefined ||
+          snapshot.startingStock !== proposed.expectedStartingStock || snapshot.committed !== proposed.expectedCommitted) {
+        return { status: 409, body: { error: "Inventory changed since this proposal. Close it and review a fresh correction." } };
       }
       product.startingStock += proposed.delta;
       inventoryEffect =

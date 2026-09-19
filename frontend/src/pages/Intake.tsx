@@ -9,7 +9,7 @@ import { api } from "../api";
 import { useStore } from "../store";
 
 export function Intake() {
-  const { refresh } = useStore();
+  const { refresh, inventory } = useStore();
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +23,7 @@ export function Intake() {
     setError(null);
     setResult(null);
     setAccepted({});
+    setPreview(null);
     try {
       setPreview(await api.parseEmail(email));
     } catch (e) {
@@ -148,23 +149,13 @@ export function Intake() {
                     </td>
                     <td className="num">{l.quantity}</td>
                     <td>
-                      {chosen ? (
-                        <span className="mono">{chosen}</span>
-                      ) : l.suggestion?.sku ? (
-                        <>
-                          <span className="pill pill-warn">needs confirmation</span>
-                          <button
-                            className="btn btn-ghost"
-                            onClick={() =>
-                              setAccepted((a) => ({ ...a, [i]: l.suggestion!.sku }))
-                            }
-                          >
-                            Confirm {l.suggestion.sku}
-                          </button>
-                        </>
-                      ) : (
-                        <span className="pill pill-warn">no match — won't affect stock</span>
-                      )}
+                      <select className="search" aria-label={`SKU for ${l.listingTitle}`} value={chosen ?? ""} disabled={busy}
+                        onChange={e => setAccepted(a => ({ ...a, [i]: e.target.value || null }))}>
+                        <option value="">Pending review — no stock commitment</option>
+                        {inventory.map(p => <option key={p.sku} value={p.sku}>{p.title} · {p.color} / {p.size} ({p.sku})</option>)}
+                      </select>
+                      {!chosen && <p className="fine">Choose the correct SKU now, or review it later in Inventory.</p>}
+
                     </td>
                   </tr>
                 );

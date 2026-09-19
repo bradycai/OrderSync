@@ -181,6 +181,8 @@ ordersRouter.post("/", (req, res) => {
           matchStatus: "matched",
         };
       }
+      // An explicit pending choice must not be overridden by a remembered mapping.
+      if (l.sku === null) return { listingTitle: l.listingTitle, quantity: l.quantity, sku: null, matchStatus: "pending_review" };
       const resolved = resolveLine(input.channel, l.listingTitle, tables.listingMaps);
       return { listingTitle: l.listingTitle, quantity: l.quantity, ...resolved };
     });

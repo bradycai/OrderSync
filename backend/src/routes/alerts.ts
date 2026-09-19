@@ -72,8 +72,13 @@ alertsRouter.post("/:id/draft", async (req, res) => {
     return res.status(400).json({ error: `Order ${order.key} is not part of alert ${alert.id}` });
   }
 
+  if (resolution === "inventory_correction" && !alert.calculation) {
+    return res.status(400).json({ error: "Stock corrections require an inventory shortage." });
+  }
   try {
-    const draft = await draftMessage(alert, order, resolution);
+    const draft = resolution === "inventory_correction"
+      ? { subject: "Review inventory correction", body: "Correct the demo stock count after verifying physical inventory.", demoMode: false }
+      : await draftMessage(alert, order, resolution);
 
     const record: ActionRecord = {
       id: nextId("act"),
@@ -84,6 +89,8 @@ alertsRouter.post("/:id/draft", async (req, res) => {
               type: "adjust_inventory",
               sku: alert.calculation.sku,
               delta: Math.abs(alert.calculation.available),
+              expectedStartingStock: alert.calculation.startingStock,
+              expectedCommitted: alert.calculation.committed,
               label: `Add ${Math.abs(alert.calculation.available)} to ${alert.calculation.sku}`,
             }
           : { type: "message_customer", orderKey: order.key, label: alert.suggestedAction.label },

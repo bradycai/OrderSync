@@ -1,8 +1,9 @@
 import { CHANNEL_LABELS } from "@orderwatch/shared";
+import { ProductMatchReview } from "../components/ProductMatchReview";
 import { useStore } from "../store";
 
 export function Inventory() {
-  const { inventory, pendingMatches } = useStore();
+  const { inventory } = useStore();
 
   return (
     <div className="page">
@@ -15,25 +16,7 @@ export function Inventory() {
         </p>
       </header>
 
-      {pendingMatches.length > 0 && (
-        <section className="callout callout-warn">
-          <strong>
-            {pendingMatches.length} uncertain product match
-            {pendingMatches.length === 1 ? "" : "es"} awaiting confirmation.
-          </strong>
-          <ul>
-            {pendingMatches.map((m) => (
-              <li key={m.id}>
-                {CHANNEL_LABELS[m.channel]}: “{m.listingTitle}” → {m.sku}{" "}
-                <span className="fine">
-                  ({Math.round(m.confidence * 100)}% confidence — excluded from stock math
-                  until confirmed on import)
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
+      <ProductMatchReview />
 
       <table className="table">
         <thead>

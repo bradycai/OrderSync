@@ -90,7 +90,7 @@ export interface Alert {
 
 export type SuggestedAction =
   | { type: "message_customer"; orderKey: string; label: string }
-  | { type: "adjust_inventory"; sku: string; delta: number; label: string }
+  | { type: "adjust_inventory"; sku: string; delta: number; label: string; expectedStartingStock?: number; expectedCommitted?: number }
   | { type: "confirm_match"; listingMapId: string; label: string };
 
 /** Every approval is simulated — nothing leaves this machine. */
