@@ -16,8 +16,7 @@ export function Inventory() {
   return (
     <div className="page">
       <header className="page-head">
-        <p className="eyebrow">ONE PRODUCT. EVERY MARKETPLACE.</p>
-        <h1>Inventory, in harmony.</h1>
+        <h1>Inventory</h1>
         <p className="sub">
           Starting stock is never edited by an import. Committed units are
           recalculated server-side from live orders on every request, so the

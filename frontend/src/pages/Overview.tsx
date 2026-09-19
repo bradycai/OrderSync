@@ -74,10 +74,9 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
     <div className="page overview-page">
       <header className="page-head head-with-action">
         <div>
-          <p className="eyebrow">YOUR DAILY OPERATIONS, AT A GLANCE</p>
-          <h1>A clear view. A calmer day.</h1>
+          <h1>Overview</h1>
           <p className="sub">
-            All your orders, inventory, and next steps. Right here.
+            Orders, inventory, and open items across every channel.
           </p>
         </div>
         <button className="btn btn-primary" onClick={() => onNavigate("intake")}>
@@ -380,7 +379,6 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
         <button onClick={() => onNavigate("attention")}>
           <b>3</b>Review &amp; approve
         </button>
-        <span className="fine">You're always in control.</span>
       </div>
     </div>
   );

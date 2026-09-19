@@ -12,6 +12,8 @@ import { SignUp } from "./pages/SignUp";
 import { Timing } from "./pages/Timing";
 import { StoreProvider, useStore } from "./store";
 
+const SIDEBAR_KEY = "orderwatch.sidebar-collapsed";
+
 const titles: Record<View, string> = {
   overview: "Overview",
   inventory: "Inventory",
@@ -44,6 +46,9 @@ function Dashboard() {
   const [view, setView] = useState<View>("overview");
   const [resetKey, setResetKey] = useState(0);
   const [notice, setNotice] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(
+    () => window.localStorage.getItem(SIDEBAR_KEY) === "1",
+  );
   const { resetDemo, demoMode, loading, error } = useStore();
   const now = DEMO_NOW;
 
@@ -53,16 +58,22 @@ function Dashboard() {
     return () => window.clearTimeout(timer);
   }, [notice]);
 
+  useEffect(() => {
+    window.localStorage.setItem(SIDEBAR_KEY, sidebarCollapsed ? "1" : "0");
+  }, [sidebarCollapsed]);
+
   const navigate = (next: View) => {
     setView(next);
     window.scrollTo({ top: 0 });
   };
 
   return (
-    <div className="shell">
+    <div className={`shell${sidebarCollapsed ? " shell-collapsed" : ""}`}>
       <Sidebar
         view={view}
         onNavigate={navigate}
+        collapsed={sidebarCollapsed}
+        onToggleCollapse={() => setSidebarCollapsed((c) => !c)}
         onReset={async () => {
           await resetDemo();
           setResetKey((k) => k + 1);

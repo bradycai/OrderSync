@@ -71,7 +71,6 @@ export function Intake({ onNavigate }: { onNavigate: (v: View) => void }) {
   return (
     <div className="page">
       <header className="page-head">
-        <p className="eyebrow">FROM INBOX TO IN CONTROL</p>
         <h1>Import an order email</h1>
         <p className="sub">
           Paste a marketplace notification. Extraction and SKU suggestions are

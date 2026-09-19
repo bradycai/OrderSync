@@ -21,16 +21,14 @@ export function AuthLayout({
             <div className="brand-name">OrderWatch</div>
           </div>
           <div className="auth-intro-copy">
-            <p className="auth-eyebrow">A little less busywork.</p>
-            <h2>Every order.<br />One clear picture.</h2>
-            <p>Bring your orders together, keep an eye on stock, and know what needs your attention.</p>
+            <h2>Orders across every channel</h2>
+            <p>Shopify, TikTok Shop, Amazon, and eBay in one view, with stock math and alerts computed on the server.</p>
           </div>
-          <div className="auth-workflow" aria-label="Your workflow">
-            <div><span>01</span><p>Bring orders together<small>One place to see what’s coming in.</small></p></div>
-            <div><span>02</span><p>Catch the exceptions<small>Spot shortages before they become surprises.</small></p></div>
-            <div><span>03</span><p>Decide what happens next<small>Review every action. Stay in control.</small></p></div>
+          <div className="auth-workflow" aria-label="What it does">
+            <div><p>Unified orders<small>Imports dedupe on channel and marketplace order ID.</small></p></div>
+            <div><p>Inventory alerts<small>Shortages and overdue orders from deterministic rules.</small></p></div>
+            <div><p>Drafted replies<small>AI-drafted, editable, and never sent without approval.</small></p></div>
           </div>
-          <p className="auth-intro-note">Built for the person behind the business.</p>
         </aside>
         <main className="auth-card">
         <div className="brand auth-brand">
@@ -40,8 +38,6 @@ export function AuthLayout({
             <div className="brand-sub">Operations assistant</div>
           </div>
         </div>
-
-        <p className="auth-eyebrow auth-form-eyebrow">Your operations, organized</p>
         <h1 className="auth-title">{title}</h1>
         <p className="auth-sub">{subtitle}</p>
 

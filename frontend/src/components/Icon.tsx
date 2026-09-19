@@ -10,7 +10,9 @@
   | "check"
   | "box"
   | "spark"
-  | "calendar";
+  | "calendar"
+  | "chevron-left"
+  | "chevron-right";
 const paths: Record<IconName, string> = {
   overview: "M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z",
   inventory: "m3 7 9-4 9 4v10l-9 4-9-4V7Zm0 0 9 4 9-4M12 11v10M7 5l10 4v5",
@@ -25,6 +27,8 @@ const paths: Record<IconName, string> = {
   box: "M3 8h18v13H3zM2 3h20v5H2zM9 12h6",
   spark: "m12 3 2.5 6.5L21 12l-6.5 2.5L12 21l-2.5-6.5L3 12l6.5-2.5L12 3Z",
   calendar: "M3 5h18v16H3zM7 2v6m10-6v6M3 11h18",
+  "chevron-left": "m14 6-6 6 6 6",
+  "chevron-right": "m10 6 6 6-6 6",
 };
 export function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
   return (

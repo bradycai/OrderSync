@@ -38,7 +38,6 @@ export function Timing() {
   return (
     <div className="page">
       <header className="page-head">
-        <p className="eyebrow">MEASURE YOUR OWN MOMENTUM</p>
         <h1>Demo timer</h1>
         <p className="sub">
           Time the same task by hand, then with OrderWatch, and compare.
