@@ -2,13 +2,12 @@ import { useAuth } from "../auth/AuthProvider";
 import { useStore } from "../store";
 import { CHANNELS, CHANNEL_LABELS } from "@orderwatch/shared";
 import { Icon } from "./Icon";
-export type View = "overview" | "inventory" | "intake" | "attention" | "timing";
+export type View = "overview" | "inventory" | "intake" | "attention";
 const NAV: { id: View; label: string }[] = [
   { id: "overview", label: "Overview" },
   { id: "inventory", label: "Inventory" },
   { id: "intake", label: "Email intake" },
   { id: "attention", label: "Needs attention" },
-  { id: "timing", label: "Demo timer" },
 ];
 export function Sidebar({
   view,

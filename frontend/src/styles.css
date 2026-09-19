@@ -1330,14 +1330,6 @@ p {
   color: #7b886e;
   font-size: 12px;
 }
-.timer-display {
-  font:
-    52px/1.2 ui-monospace,
-    monospace;
-  letter-spacing: -2px;
-  color: var(--accent);
-  margin: 20px 0;
-}
 .toast {
   position: fixed;
   bottom: 25px;

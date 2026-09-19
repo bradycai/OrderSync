@@ -9,7 +9,6 @@ import { Inventory } from "./pages/Inventory";
 import { Overview } from "./pages/Overview";
 import { SignIn } from "./pages/SignIn";
 import { SignUp } from "./pages/SignUp";
-import { Timing } from "./pages/Timing";
 import { StoreProvider, useStore } from "./store";
 
 const SIDEBAR_KEY = "orderwatch.sidebar-collapsed";
@@ -19,7 +18,6 @@ const titles: Record<View, string> = {
   inventory: "Inventory",
   intake: "Email intake",
   attention: "Needs attention",
-  timing: "Demo timer",
 };
 
 export function App() {
@@ -112,9 +110,7 @@ function Dashboard() {
             {view === "overview" && <Overview onNavigate={navigate} />}
             {view === "intake" && <Intake onNavigate={navigate} />}
             {view === "attention" && <Attention />}
-            {view === "inventory" && <Inventory />}
-            {view === "timing" && <Timing />}
-          </div>
+            {view === "inventory" && <Inventory />}          </div>
         )}
         <footer className="app-footer">
           <span>

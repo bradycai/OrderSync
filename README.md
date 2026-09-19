@@ -25,8 +25,7 @@ The database is created and seeded automatically on first launch.
    and eBay each sold 2. The alert shows `5 − 6 = -1` and all three contributing orders.
 5. Open the alert → pick a resolution (delay, partial shipment, refund, or stock
    correction) → *Draft the message* → edit it → **Approve (simulated)**.
-6. **Demo timer** → time the same reconciliation manually and with the app.
-7. **Reset demo** in the sidebar returns everything to the seeded state.
+6. **Reset demo** in the sidebar returns everything to the seeded state.
 
 ## Design rules
 
@@ -43,7 +42,6 @@ The database is created and seeded automatically on first launch.
 - **Uncertain matches stay out of the math.** A suggested SKU below 90% confidence is
   held as `pending_review` and contributes nothing to committed stock until the founder
   confirms it on import — at which point the mapping is remembered for next time.
-- **No time-savings claims.** The demo timer records only what you actually measure.
 
 ## API
 
@@ -90,12 +88,11 @@ backend/src/
 frontend/src/
   api.ts             Typed client for the endpoints above
   store.tsx          Caches server state; refresh() after every mutation
-  pages/             Overview, Intake, Attention, Inventory, Timing
-  lib/timing.ts      Demo timer (client-only)
+  pages/             Overview, Intake, Attention, Inventory
 ```
 
 Server state persists across restarts. **Reset demo** replaces saved orders, products,
-listing mappings, and action history with sample data. The demo timer remains browser-only.
+listing mappings, and action history with sample data.
 
 ## Run locally
 

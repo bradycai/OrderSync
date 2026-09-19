@@ -14,13 +14,12 @@ import type {
   InventoryRow,
   ListingMap,
   Order,
-  TimingRun,
 } from "@orderwatch/shared";
 import { api } from "./api";
 
 /**
  * The server owns all order, inventory, and action state. This store is a
- * cache of it plus the purely local demo timer, and `refresh()` is the single
+ * cache of it, and `refresh()` is the single
  * way anything gets re-read after a mutation.
  */
 interface Store {
@@ -39,10 +38,6 @@ interface Store {
   search: string;
   setChannelFilter: (c: Channel | "all") => void;
   setSearch: (s: string) => void;
-
-  /** Client-only: manual vs assisted reconciliation timing. */
-  timings: TimingRun[];
-  setTimings: (t: TimingRun[]) => void;
 
   refresh: () => Promise<void>;
   resetDemo: () => Promise<void>;
@@ -65,7 +60,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
   const [search, setSearch] = useState("");
-  const [timings, setTimings] = useState<TimingRun[]>([]);
 
   const refresh = useCallback(async () => {
     setError(null);
@@ -102,7 +96,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     await api.resetDemo();
     setChannelFilter("all");
     setSearch("");
-    setTimings([]);
     await refresh();
   }, [refresh]);
 
@@ -116,7 +109,6 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     loading, error, demoMode,
     orders, inventory, pendingMatches, alerts, supportingOrders, actions,
     channelFilter, search, setChannelFilter, setSearch,
-    timings, setTimings,
     refresh, resetDemo,
     orderByKey: (key) => byKey.get(key),
   };

@@ -104,16 +104,6 @@ export interface ActionRecord {
   decidedAt?: string;
 }
 
-/** Manual vs assisted reconciliation timing, recorded during a live demo. */
-export interface TimingRun {
-  id: string;
-  mode: "manual" | "assisted";
-  label: string;
-  startedAt: string;
-  endedAt?: string;
-  seconds?: number;
-}
-
 export interface ExtractedOrder {
   channel: Channel;
   channelOrderId: string;
