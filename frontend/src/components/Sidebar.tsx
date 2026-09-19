@@ -41,7 +41,7 @@ export function Sidebar({ view, onNavigate }: { view: View; onNavigate: (v: View
       </ul>
 
       <div className="sidebar-foot">
-        <button className="btn btn-ghost" onClick={resetDemo}>
+        <button className="btn btn-ghost" onClick={() => void resetDemo()}>
           Reset demo
         </button>
         <p className="fine">All data is synthetic. All actions are simulated.</p>

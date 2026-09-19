@@ -1,7 +1,6 @@
-import type { Alert, InventorySnapshot, Order, Product } from "../types";
-import { CHANNEL_LABELS } from "../types";
-import { snapshotAll } from "./inventory";
-import { holdsStock } from "./inventory";
+import type { Alert, InventorySnapshot, Order, Product } from "./types";
+import { CHANNEL_LABELS } from "./types";
+import { holdsStock, snapshotAll } from "./inventory";
 
 /**
  * Alert detection is fully deterministic — no model involvement. The AI only

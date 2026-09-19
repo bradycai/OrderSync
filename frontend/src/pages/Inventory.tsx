@@ -1,30 +1,34 @@
-import { isLow } from "../lib/inventory";
+import { CHANNEL_LABELS } from "@orderwatch/shared";
 import { useStore } from "../store";
-import { CHANNEL_LABELS } from "../types";
 
 export function Inventory() {
-  const { products, snapshots, listingMaps } = useStore();
-  const pending = listingMaps.filter((m) => m.status === "pending");
+  const { inventory, pendingMatches } = useStore();
 
   return (
     <div className="page">
       <header className="page-head">
         <h1>Inventory</h1>
         <p className="sub">
-          Starting stock is never edited by an import. Committed units are recomputed from
-          live orders, so the same notification twice can't double-count.
+          Starting stock is never edited by an import. Committed units are recalculated
+          server-side from live orders on every request, so the same notification twice
+          can't double-count.
         </p>
       </header>
 
-      {pending.length > 0 && (
+      {pendingMatches.length > 0 && (
         <section className="callout callout-warn">
-          <strong>{pending.length} uncertain product match{pending.length === 1 ? "" : "es"} awaiting confirmation.</strong>
+          <strong>
+            {pendingMatches.length} uncertain product match
+            {pendingMatches.length === 1 ? "" : "es"} awaiting confirmation.
+          </strong>
           <ul>
-            {pending.map((m) => (
+            {pendingMatches.map((m) => (
               <li key={m.id}>
                 {CHANNEL_LABELS[m.channel]}: “{m.listingTitle}” → {m.sku}{" "}
-                <span className="fine">({Math.round(m.confidence * 100)}% confidence — excluded from stock math until confirmed)</span>
-                {/* TODO: wire confirm / reject to setListingMaps */}
+                <span className="fine">
+                  ({Math.round(m.confidence * 100)}% confidence — excluded from stock math
+                  until confirmed on import)
+                </span>
               </li>
             ))}
           </ul>
@@ -34,8 +38,7 @@ export function Inventory() {
       <table className="table">
         <thead>
           <tr>
-            <th>SKU</th>
-            <th>Product</th>
+            <th>SKU</th><th>Product</th>
             <th className="num">Starting stock</th>
             <th className="num">Committed</th>
             <th className="num">Available</th>
@@ -43,20 +46,18 @@ export function Inventory() {
           </tr>
         </thead>
         <tbody>
-          {snapshots.map((s) => {
-            const p = products.find((x) => x.sku === s.sku)!;
-            const maps = listingMaps.filter((m) => m.sku === s.sku && m.status === "confirmed");
-            return (
-              <tr key={s.sku} className={s.available < 0 ? "row-critical" : isLow(s) ? "row-warn" : undefined}>
-                <td className="mono">{s.sku}</td>
-                <td>{p.title} — {p.color} / {p.size}</td>
-                <td className="num">{s.startingStock}</td>
-                <td className="num">{s.committed}</td>
-                <td className="num strong">{s.available}</td>
-                <td className="fine">{maps.map((m) => CHANNEL_LABELS[m.channel]).join(", ") || "—"}</td>
-              </tr>
-            );
-          })}
+          {inventory.map((r) => (
+            <tr key={r.sku} className={r.isShort ? "row-critical" : r.isLow ? "row-warn" : undefined}>
+              <td className="mono">{r.sku}</td>
+              <td>{r.title} — {r.color} / {r.size}</td>
+              <td className="num">{r.startingStock}</td>
+              <td className="num">{r.committed}</td>
+              <td className="num strong">{r.available}</td>
+              <td className="fine">
+                {r.mappedChannels.map((c) => CHANNEL_LABELS[c]).join(", ") || "—"}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
