@@ -1,0 +1,124 @@
+import { useState } from "react";
+import { AuthLayout, Field } from "../components/AuthLayout";
+import { useAuth } from "../auth/AuthProvider";
+
+const MIN_PASSWORD = 8;
+/** Mirrors the server's cap. Sign-in stays unbounded so older accounts still work. */
+const MAX_PASSWORD = 128;
+
+export function SignUp({ onSwitch }: { onSwitch: () => void }) {
+  const { signUp } = useAuth();
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState<{ message: string; field?: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+
+    // Mirrors the server's zod rules for faster feedback. The server still decides.
+    if (!name.trim()) return setError({ message: "Name is required", field: "name" });
+    if (password.length < MIN_PASSWORD) {
+      return setError({
+        message: `Password must be at least ${MIN_PASSWORD} characters`,
+        field: "password",
+      });
+    }
+    if (password.length > MAX_PASSWORD) {
+      return setError({
+        message: `Password must be ${MAX_PASSWORD} characters or fewer`,
+        field: "password",
+      });
+    }
+    // Confirmation never reaches the server — it only guards against a typo in
+    // a field the founder cannot read back.
+    if (confirm !== password) {
+      return setError({ message: "Passwords do not match", field: "confirm" });
+    }
+
+    setBusy(true);
+    const result = await signUp(name, email, password);
+    if (!result.ok) {
+      setError({ message: result.error, field: result.field });
+      setBusy(false);
+    }
+  }
+
+  const fieldError = (field: string) =>
+    error?.field === field ? error.message : undefined;
+
+  return (
+    <AuthLayout
+      title="Create your account"
+      subtitle="Set up a login to open the OrderSync operations dashboard."
+      footer={
+        <>
+          <span className="fine">Already have an account?</span>{" "}
+          <button type="button" className="link" onClick={onSwitch}>
+            Sign in
+          </button>
+        </>
+      }
+    >
+      <form className="auth-form" onSubmit={handleSubmit} noValidate>
+        {error && !error.field && (
+          <p className="form-error" role="alert">
+            {error.message}
+          </p>
+        )}
+
+        <Field
+          id="name"
+          label="Name"
+          type="text"
+          value={name}
+          onChange={setName}
+          autoComplete="name"
+          placeholder="Your full name"
+          error={fieldError("name")}
+          autoFocus
+        />
+
+        <Field
+          id="email"
+          label="Email"
+          type="email"
+          value={email}
+          onChange={setEmail}
+          autoComplete="email"
+          placeholder="you@example.com"
+          error={fieldError("email")}
+        />
+
+        <Field
+          id="password"
+          label="Password"
+          type="password"
+          value={password}
+          onChange={setPassword}
+          autoComplete="new-password"
+          placeholder={`At least ${MIN_PASSWORD} characters`}
+          error={fieldError("password")}
+        />
+
+        <Field
+          id="confirm"
+          label="Confirm password"
+          type="password"
+          value={confirm}
+          onChange={setConfirm}
+          autoComplete="new-password"
+          placeholder="Re-enter your password"
+          error={fieldError("confirm")}
+        />
+
+        <button className="btn btn-primary btn-block" type="submit" disabled={busy}>
+          {busy ? "Creating account…" : "Create account"}
+        </button>
+      </form>
+    </AuthLayout>
+  );
+}

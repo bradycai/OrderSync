@@ -8,24 +8,11 @@ approve.
 > **Prototype.** All data is synthetic and every outward action (customer emails,
 > marketplace stock updates) is simulated. Nothing leaves your machine.
 
-## Status: baseline scaffold
+## Status
 
-This repo is the starting skeleton — domain model, deterministic logic, seeded
-demo data, AI endpoints, and a working UI shell. Search for `TODO` for the gaps.
-
-## Setup
-
-```bash
-npm install
-cp .env.example .env     # optional — see AI credentials below
-npm run dev              # web on :5173, API on :8787
-```
-
-### AI credentials
-
-Set `ANTHROPIC_API_KEY` in `.env` to use the real model (`claude-opus-5`).
-Without it the app boots in **demo mode**: the same endpoints return prepared
-sample outputs, every one of them labeled in the UI. The demo flow works either way.
+The backend is real: orders, email import, inventory, alerts, drafting, and approval
+history all run through the API. State is saved in a local SQLite database and survives backend restarts.
+The database is created and seeded automatically on first launch.
 
 ## Demo flow
 
@@ -36,7 +23,8 @@ sample outputs, every one of them labeled in the UI. The demo flow works either 
 3. **Overview** → the order appears in the unified table; filter by channel.
 4. **Needs attention** → 5 black medium hoodies in stock, but Shopify, TikTok Shop,
    and eBay each sold 2. The alert shows `5 − 6 = -1` and all three contributing orders.
-5. Open the alert → edit the AI-drafted customer message → **Approve (simulated)**.
+5. Open the alert → pick a resolution (delay, partial shipment, refund, or stock
+   correction) → *Draft the message* → edit it → **Approve (simulated)**.
 6. **Demo timer** → time the same reconciliation manually and with the app.
 7. **Reset demo** in the sidebar returns everything to the seeded state.
 
@@ -46,31 +34,87 @@ sample outputs, every one of them labeled in the UI. The demo flow works either 
   matching, and message drafting go to the model. Stock math, duplicate detection,
   deadlines, and alert thresholds are plain deterministic TypeScript.
 - **Starting stock is immutable.** `Product.startingStock` is physical stock on hand.
-  Commitments are recomputed from the current order list on every render
-  (`src/lib/inventory.ts`), so re-importing a notification can never double-deduct.
+  Commitments are derived from the current order list on every request
+  (`shared/src/inventory.ts`), so re-importing a notification can never double-deduct.
 - **Canceled orders hold no stock**, and lines whose SKU match is still
   `pending_review` are excluded from commitments until a human confirms them.
-- **Identity is `channel + marketplace order id`** (`src/lib/orders.ts`). That single
-  rule is what makes repeated notifications idempotent.
+- **Identity is `channel + marketplace order id`** (`shared/src/orders.ts`). That single
+  rule is what makes repeated notifications idempotent, and the server enforces it.
+- **Uncertain matches stay out of the math.** A suggested SKU below 90% confidence is
+  held as `pending_review` and contributes nothing to committed stock until the founder
+  confirms it on import — at which point the mapping is remembered for next time.
 - **No time-savings claims.** The demo timer records only what you actually measure.
+
+## API
+
+All endpoints are under `/api`. The Vite dev server proxies to `:8787`.
+
+| Method | Endpoint | What it does |
+|---|---|---|
+| `GET` | `/api/status` | Demo-mode flag and model id. `simulated` is always `true`. |
+| `GET` | `/api/orders` | Lists orders. Filters: `?channel=`, `?status=`, `?q=`. |
+| `POST` | `/api/orders/parse-email` | AI-extracts an order from pasted text and resolves each line to a SKU. Returns a preview; **writes nothing**. |
+| `POST` | `/api/orders` | Saves the reviewed order. Deduped on channel + order ID: a repeat returns `200 updated`, a new one `201 created`. |
+| `GET` | `/api/inventory` | Starting stock, committed, available per SKU, recomputed from live orders. |
+| `GET` | `/api/alerts` | Shortages and overdue orders, with the supporting order records. |
+| `POST` | `/api/alerts/:id/draft` | Drafts a customer message for the chosen `resolution`. Creates a `pending_review` action. |
+| `POST` | `/api/actions/:id/approve` | Records the decision. Marked simulated; nothing is sent. |
+| `GET` | `/api/actions` | Approval history. |
+| `POST` | `/api/demo/reset` | Back to the seeded state. |
+
+### Resolutions
+
+`POST /api/alerts/:id/draft` takes one of `delay_and_apologize`, `partial_shipment`,
+`offer_refund`, `cancel_and_refund`, or `inventory_correction`. The choice drives the
+draft. `inventory_correction` is the one action that changes stored state on approval —
+and it adjusts *starting stock*, the field an import never touches.
 
 ## Layout
 
+Three npm workspaces.
+
 ```
-server/
-  index.ts         Express API: /api/status, /api/extract, /api/match, /api/draft
-  claude.ts        Anthropic client, model id, Zod output schemas
-  demoOutputs.ts   Prepared sample outputs used when no API key is present
-src/
-  types.ts         Domain model
-  store.tsx        In-memory app state + reset
-  data/seed.ts     Synthetic catalog, listing maps, orders, sample emails
-  lib/inventory.ts Deterministic stock math
-  lib/orders.ts    Identity, dedupe/upsert, deadlines, SKU resolution
-  lib/alerts.ts    Shortage and overdue detection
-  lib/timing.ts    Manual vs assisted timing
-  pages/           Overview, Intake, Attention, Inventory, Timing
+shared/src/        Domain model + deterministic logic, imported by both sides
+  types.ts           Model and API contract
+  seed.ts            Synthetic catalog, listing maps, orders, sample emails
+  inventory.ts       Stock math
+  orders.ts          Identity, dedupe/upsert, deadlines, SKU resolution
+  alerts.ts          Shortage and overdue detection
+backend/src/
+  index.ts           Express app and route wiring
+  db.ts              SQLite connection and database path
+  ai.ts              The only live-model vs demo-mode branch
+  claude.ts          Anthropic client, model id, Zod output schemas
+  demoOutputs.ts     Hand-written outputs used when no API key is present
+  routes/            orders, inventory, alerts, actions
+frontend/src/
+  api.ts             Typed client for the endpoints above
+  store.tsx          Caches server state; refresh() after every mutation
+  pages/             Overview, Intake, Attention, Inventory, Timing
+  lib/timing.ts      Demo timer (client-only)
 ```
 
-State is in-memory only — a reload restores the seed data, which is the behavior
-you want in a demo.
+Server state persists across restarts. **Reset demo** replaces saved orders, products,
+listing mappings, and action history with sample data. The demo timer remains browser-only.
+
+## Run locally
+
+Requires Node.js 24 or newer.
+
+```sh
+npm install
+npm run dev
+```
+
+Open http://localhost:5173. SQLite defaults to `backend/data/orderwatch.sqlite`;
+set `DATABASE_PATH` to an absolute path in the root `.env` to override it.
+The database and its journal files are excluded from Git. Stop the backend before
+copying the database file for a backup. No database service or credentials are required.
+
+Schema version 1 is created automatically. Records are stored as keyed JSON rows in
+products, orders, listingMaps, and actions tables, with a unique index on marketplace
+channel + order ID. Imports and stock approvals use transactions. Sample data is
+inserted only for a new database; restarting never overwrites existing records.
+Marketplace actions are still simulated, and overdue alerts still use the demo clock.
+
+Run persistence and API tests with `npm test -w backend`.
