@@ -1,3 +1,4 @@
+import { aiFailureReason } from "./aiErrors";
 import { randomUUID } from "node:crypto";
 import { autoResolveReason, detectAlerts, type Alert, type Order } from "@orderwatch/shared";
 import type { StoreDatabase } from "./database";
@@ -28,8 +29,8 @@ export async function autoResolveWarnings(db: StoreDatabase, now: Date, draft: D
         return true;
       });
       results.push({ alertId: alert.id, title: alert.title, status: saved ? "handled" : "skipped", reason: saved ? "Warning resolved in the demo queue. No email sent; shipment still requires fulfillment." : "Issue changed or was handled while AI was working.", ...(saved ? { draft: message.body, demoMode: message.demoMode } : {}) });
-    } catch {
-      results.push({ alertId: alert.id, title: alert.title, status: "failed", reason: "Could not prepare the AI follow-up. Left for manual review; you can retry." });
+    } catch (error) {
+      results.push({ alertId: alert.id, title: alert.title, status: "failed", reason: aiFailureReason(error) });
     }
   }
   return { simulated: true as const, results };

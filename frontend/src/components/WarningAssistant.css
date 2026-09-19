@@ -1,0 +1,51 @@
+.warning-assistant-loading {
+  margin-top: 16px;
+  max-width: 560px;
+}
+
+.warning-assistant-loading p {
+  margin: 8px 0 0;
+}
+
+/* Indeterminate: the API returns the batch at completion, not a percentage. */
+.warning-assistant-progress {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent-soft, #eaefff);
+}
+
+.warning-assistant-progress::-webkit-progress-bar {
+  background: var(--accent-soft, #eaefff);
+  border-radius: 999px;
+}
+
+.warning-assistant-progress:indeterminate {
+  background: linear-gradient(90deg, transparent, var(--accent, #2f5bd7), transparent)
+    -80% 0 / 45% 100% no-repeat var(--accent-soft, #eaefff);
+  animation: warning-assistant-loading 1.5s ease-in-out infinite;
+}
+
+.warning-assistant-progress:indeterminate::-webkit-progress-bar {
+  background: transparent;
+}
+
+.warning-assistant-progress::-moz-progress-bar {
+  background: var(--accent, #2f5bd7);
+}
+
+@keyframes warning-assistant-loading {
+  from { background-position: -80% 0; }
+  to { background-position: 180% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .warning-assistant-progress:indeterminate {
+    animation: none;
+    background-position: 50% 0;
+  }
+}

@@ -6,6 +6,7 @@ import {
   type Alert,
   type Resolution,
 } from "@orderwatch/shared";
+import { WarningAssistant } from "../components/WarningAssistant";
 import { api } from "../api";
 import { ChannelBadge } from "../components/ChannelBadge";
 import { useStore } from "../store";
@@ -95,13 +96,15 @@ export function Attention() {
         </p>
       </header>
 
+      <WarningAssistant />
+
       {alerts.length === 0 && (
-        <p className="empty">Nothing needs attention right now.</p>
+        <p className="empty">No active alerts. AI-handled warnings appear in resolved history below.</p>
       )}
 
       {alerts.map((a) => {
         const done = actions.find(
-          (x) => x.alertId === a.id && x.status === "approved_simulated",
+          (x) => x.alertId === a.id && x.status === "approved_simulated" && !x.automation,
         );
         return (
           <article key={a.id} className={`card alert alert-${a.severity}`}>
@@ -163,6 +166,20 @@ export function Attention() {
           </article>
         );
       })}
+
+      {actions.some(a => a.automation?.orderSnapshot) && (
+        <section className="card" aria-label="Resolved by AI">
+          <h2>Resolved by AI — demo workflow</h2>
+          <p className="fine">Handled warnings are recorded here. No email was sent or order marked shipped. Changed orders or critical issues return to the active queue.</p>
+          {actions.filter(a => a.automation?.orderSnapshot && a.status === "approved_simulated").map(action => (
+            <details key={action.id}>
+              <summary>{action.automation?.alertTitle ?? action.alertId} · {alerts.some(a => a.id === action.alertId) ? "Needs attention again" : "Resolved (simulated)"}</summary>
+              <p className="fine">{action.decidedAt && new Date(action.decidedAt).toLocaleString()} · {action.automation?.demoMode ? "Prepared demo output" : "AI-generated follow-up"}</p>
+              <p style={{ whiteSpace: "pre-wrap" }}>{action.draft}</p>
+            </details>
+          ))}
+        </section>
+      )}
 
       <dialog
         ref={dialog}
