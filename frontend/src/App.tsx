@@ -4,10 +4,13 @@ import { Attention } from "./pages/Attention";
 import { Intake } from "./pages/Intake";
 import { Inventory } from "./pages/Inventory";
 import { Overview } from "./pages/Overview";
+import { SignIn } from "./pages/SignIn";
+import { SignUp } from "./pages/SignUp";
 import { Timing } from "./pages/Timing";
 import { useStore } from "./store";
 
 export function App() {
+  const { status } = useAuth();
   const [view, setView] = useState<View>("overview");
   const { demoMode, loading, error } = useStore();
 

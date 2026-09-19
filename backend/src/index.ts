@@ -11,6 +11,9 @@ import { ordersRouter } from "./routes/orders";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
+
+app.use("/api/auth", authRoutes);
 
 /**
  * Demo status. `simulated` is always true: this server never contacts a
