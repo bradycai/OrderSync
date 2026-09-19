@@ -1,5 +1,6 @@
-﻿import { useStore } from "../store";
-import { CHANNELS, CHANNEL_LABELS } from "../types";
+import { useAuth } from "../auth/AuthProvider";
+import { useStore } from "../store";
+import { CHANNELS, CHANNEL_LABELS } from "@orderwatch/shared";
 import { Icon } from "./Icon";
 export type View = "overview" | "inventory" | "intake" | "attention" | "timing";
 const NAV: { id: View; label: string }[] = [
@@ -19,6 +20,7 @@ export function Sidebar({
   onReset: () => void;
 }) {
   const { alerts } = useStore();
+  const { signOut } = useAuth();
   return (
     <aside className="sidebar">
       <a
@@ -101,6 +103,10 @@ export function Sidebar({
         <button className="reset-button" onClick={onReset}>
           <Icon name="reset" size={16} />
           Reset demo
+        </button>
+        <button className="reset-button" onClick={() => void signOut()}>
+          <Icon name="arrow" size={16} />
+          Sign out
         </button>
         <div className="profile">
           <span className="profile-avatar">SS</span>

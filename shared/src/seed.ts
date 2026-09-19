@@ -1,4 +1,4 @@
-import type { ListingMap, Order, Product } from "../types";
+import type { ListingMap, Order, Product } from "./types";
 
 /**
  * Fixed "now" so the demo is reproducible: overdue orders stay overdue,

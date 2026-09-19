@@ -1,4 +1,4 @@
-import type { ExtractedOrder, ListingMap, Order, OrderLine } from "../types";
+import type { ExtractedOrder, ListingMap, Order, OrderLine } from "./types";
 
 /** Identity is channel + marketplace order id. Nothing else. */
 export const orderKey = (channel: string, channelOrderId: string) =>

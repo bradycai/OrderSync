@@ -1,12 +1,17 @@
-﻿import { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import { DEMO_NOW } from "@orderwatch/shared";
+import { useAuth } from "./auth/AuthProvider";
 import { Sidebar, type View } from "./components/Sidebar";
 import { Icon } from "./components/Icon";
 import { Attention } from "./pages/Attention";
 import { Intake } from "./pages/Intake";
 import { Inventory } from "./pages/Inventory";
 import { Overview } from "./pages/Overview";
+import { SignIn } from "./pages/SignIn";
+import { SignUp } from "./pages/SignUp";
 import { Timing } from "./pages/Timing";
-import { useStore } from "./store";
+import { StoreProvider, useStore } from "./store";
+
 const titles: Record<View, string> = {
   overview: "Overview",
   inventory: "Inventory",
@@ -14,34 +19,52 @@ const titles: Record<View, string> = {
   attention: "Needs attention",
   timing: "Demo timer",
 };
+
 export function App() {
+  const { status } = useAuth();
+  const [authView, setAuthView] = useState<"signin" | "signup">("signin");
+
+  if (status === "loading") return <div className="auth-shell" />;
+  if (status === "anon") {
+    return authView === "signin" ? (
+      <SignIn onSwitch={() => setAuthView("signup")} />
+    ) : (
+      <SignUp onSwitch={() => setAuthView("signin")} />
+    );
+  }
+
+  return (
+    <StoreProvider>
+      <Dashboard />
+    </StoreProvider>
+  );
+}
+
+function Dashboard() {
   const [view, setView] = useState<View>("overview");
-  const [demoMode, setDemoMode] = useState(true);
   const [resetKey, setResetKey] = useState(0);
   const [notice, setNotice] = useState("");
-  const { resetDemo, now } = useStore();
-  useEffect(() => {
-    fetch("/api/status")
-      .then((r) => r.json())
-      .then((s) => setDemoMode(s.demoMode !== false))
-      .catch(() => setDemoMode(true));
-  }, []);
+  const { resetDemo, demoMode, loading, error } = useStore();
+  const now = DEMO_NOW;
+
   useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(""), 3500);
     return () => window.clearTimeout(timer);
   }, [notice]);
+
   const navigate = (next: View) => {
     setView(next);
     window.scrollTo({ top: 0 });
   };
+
   return (
     <div className="shell">
       <Sidebar
         view={view}
         onNavigate={navigate}
-        onReset={() => {
-          resetDemo();
+        onReset={async () => {
+          await resetDemo();
           setResetKey((k) => k + 1);
           navigate("overview");
           setNotice("Demo reset. You're back to the original sample data.");
@@ -67,13 +90,21 @@ export function App() {
             </span>
           </div>
         </div>
-        <div key={resetKey}>
-          {view === "overview" && <Overview onNavigate={navigate} />}
-          {view === "intake" && <Intake onNavigate={navigate} />}
-          {view === "attention" && <Attention />}
-          {view === "inventory" && <Inventory />}
-          {view === "timing" && <Timing />}
-        </div>
+        {error && <div className="banner banner-error">{error}</div>}
+        {loading && (
+          <div className="page">
+            <p className="empty">Loading…</p>
+          </div>
+        )}
+        {!loading && (
+          <div key={resetKey}>
+            {view === "overview" && <Overview onNavigate={navigate} />}
+            {view === "intake" && <Intake onNavigate={navigate} />}
+            {view === "attention" && <Attention />}
+            {view === "inventory" && <Inventory />}
+            {view === "timing" && <Timing />}
+          </div>
+        )}
         <footer className="app-footer">
           <span>
             <span className="footer-dot" />

@@ -1,94 +1,63 @@
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import dotenv from "dotenv";
-import express from "express";
-
-// .env lives at the repo root so backend and frontend read the same file.
-dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "../../.env") });
-import {
-  DraftSchema,
-  ExtractedOrderSchema,
-  MatchSuggestionSchema,
-  hasCredentials,
-  parseWith,
-} from "./claude";
-import { demoDraft, demoExtract, demoMatch } from "./demoOutputs";
+import "./env";
+import cookieParser from "cookie-parser";
+import { authRoutes } from "./auth/routes";
+import { requireAuth } from "./auth/middleware";
+import express, { type NextFunction, type Request, type Response } from "express";
+import type { DemoStatus } from "@orderwatch/shared";
+import { isDemoMode } from "./ai";
+import { MODEL } from "./claude";
+import { db, databasePath, resetDb } from "./db";
+import { actionsRouter } from "./routes/actions";
+import { alertsRouter } from "./routes/alerts";
+import { inventoryRouter } from "./routes/inventory";
+import { ordersRouter } from "./routes/orders";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
 
-const demoMode = () => !hasCredentials();
+app.use("/api/auth", authRoutes);
 
+/**
+ * Demo status. `simulated` is always true: this server never contacts a
+ * marketplace or sends an email, and no endpoint should imply otherwise.
+ */
 app.get("/api/status", (_req, res) => {
-  res.json({ demoMode: demoMode(), model: "claude-opus-5" });
+  const body: DemoStatus = { demoMode: isDemoMode(), model: MODEL, simulated: true };
+  res.json(body);
 });
 
-/** AI step 1 — pull structured order fields out of pasted email text. */
-app.post("/api/extract", async (req, res) => {
-  const { email } = req.body as { email: string };
-  if (!email?.trim()) return res.status(400).json({ error: "email body required" });
+// Auth and status remain public; operational data requires a session.
+app.use("/api", requireAuth);
 
-  if (demoMode()) return res.json({ ...demoExtract(email), demoMode: true });
+app.use("/api/orders", ordersRouter);
+app.use("/api/inventory", inventoryRouter);
+app.use("/api/alerts", alertsRouter);
+app.use("/api/actions", actionsRouter);
 
-  try {
-    const out = await parseWith(
-      ExtractedOrderSchema,
-      "You extract order details from e-commerce notification emails. " +
-        "Copy listing titles verbatim — do not normalize them. " +
-        "Return ISO 8601 timestamps in UTC. If the ship-by date is absent, return null.",
-      email,
-    );
-    res.json({ ...out, demoMode: false });
-  } catch (err) {
-    res.status(502).json({ error: (err as Error).message });
-  }
+/** Back to the seeded state — orders, stock, mappings, and history. */
+app.post("/api/demo/reset", (_req, res) => {
+  resetDb();
+  res.json({ ok: true, message: "Demo data reset to the seeded state." });
 });
 
-/** AI step 2 — propose a SKU for an unrecognized listing title. */
-app.post("/api/match", async (req, res) => {
-  const { listingTitle, catalog } = req.body as {
-    listingTitle: string;
-    catalog: { sku: string; title: string; color: string; size: string }[];
-  };
+app.use((_req, res) => res.status(404).json({ error: "Not found" }));
 
-  if (demoMode()) return res.json({ ...demoMatch(listingTitle), demoMode: true });
-
-  try {
-    const out = await parseWith(
-      MatchSuggestionSchema,
-      "You map marketplace listing titles to internal SKUs. Return null for sku " +
-        "when nothing is a plausible match. Confidence below 0.9 means a human must confirm.",
-      `Listing: ${listingTitle}\n\nCatalog:\n${JSON.stringify(catalog, null, 2)}`,
-    );
-    res.json({ ...out, demoMode: false });
-  } catch (err) {
-    res.status(502).json({ error: (err as Error).message });
-  }
-});
-
-/** AI step 3 — draft the customer message the founder will edit and approve. */
-app.post("/api/draft", async (req, res) => {
-  const { context } = req.body as { context: string };
-
-  if (demoMode()) return res.json({ ...demoDraft(context ?? ""), demoMode: true });
-
-  try {
-    const out = await parseWith(
-      DraftSchema,
-      "You write short, warm, plain customer-service emails for a small clothing brand. " +
-        "No corporate filler. Be specific about what went wrong and what happens next. " +
-        "Always offer a refund alternative. Under 120 words.",
-      context,
-    );
-    res.json({ ...out, demoMode: false });
-  } catch (err) {
-    res.status(502).json({ error: (err as Error).message });
-  }
+app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
+  console.error(err);
+  res.status(500).json({ error: err.message });
 });
 
 const port = Number(process.env.API_PORT ?? 8787);
-app.listen(port, () => {
+const server = app.listen(port, () => {
+  console.log(`SQLite database: ${databasePath}`);
   console.log(
-    `OrderWatch API on :${port} — ${demoMode() ? "DEMO MODE (no ANTHROPIC_API_KEY)" : "live model"}`,
+    `OrderWatch API on :${(server.address() as { port: number }).port} — ${
+      isDemoMode() ? "DEMO MODE (no ANTHROPIC_API_KEY)" : `live model (${MODEL})`
+    }`,
   );
 });
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, () => server.close(() => { db.close(); process.exit(0); }));
+}

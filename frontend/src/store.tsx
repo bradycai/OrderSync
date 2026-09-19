@@ -2,171 +2,126 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useState,
+  type ReactNode,
 } from "react";
-import type { ReactNode } from "react";
-import {
-  DEMO_NOW,
-  SEED_LISTING_MAPS,
-  SEED_ORDERS,
-  SEED_PRODUCTS,
-} from "./data/seed";
-import { detectAlerts } from "./lib/alerts";
-import { snapshotAll } from "./lib/inventory";
-import { upsertOrder } from "./lib/orders";
 import type {
   ActionRecord,
   Alert,
   Channel,
-  InventorySnapshot,
+  InventoryRow,
   ListingMap,
   Order,
-  Product,
   TimingRun,
-} from "./types";
+} from "@orderwatch/shared";
+import { api } from "./api";
 
+/**
+ * The server owns all order, inventory, and action state. This store is a
+ * cache of it plus the purely local demo timer, and `refresh()` is the single
+ * way anything gets re-read after a mutation.
+ */
 interface Store {
-  products: Product[];
+  loading: boolean;
+  error: string | null;
+  demoMode: boolean;
+
   orders: Order[];
-  listingMaps: ListingMap[];
+  inventory: InventoryRow[];
+  pendingMatches: ListingMap[];
+  alerts: Alert[];
+  supportingOrders: Order[];
   actions: ActionRecord[];
-  timings: TimingRun[];
+
   channelFilter: Channel | "all";
   search: string;
-  now: Date;
-
-  // Derived, recomputed on every change — never cached into state.
-  snapshots: InventorySnapshot[];
-  alerts: Alert[];
-  visibleOrders: Order[];
-
   setChannelFilter: (c: Channel | "all") => void;
   setSearch: (s: string) => void;
-  importOrder: (o: Order) => "created" | "updated";
-  setListingMaps: (m: ListingMap[]) => void;
-  reviewMatch: (id: string, confirmed: boolean) => void;
-  setActions: (a: ActionRecord[]) => void;
+
+  /** Client-only: manual vs assisted reconciliation timing. */
+  timings: TimingRun[];
   setTimings: (t: TimingRun[]) => void;
-  resetDemo: () => void;
+
+  refresh: () => Promise<void>;
+  resetDemo: () => Promise<void>;
+  orderByKey: (key: string) => Order | undefined;
 }
 
 const StoreContext = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [products, setProducts] = useState<Product[]>(SEED_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(SEED_ORDERS);
-  const [listingMaps, setListingMaps] =
-    useState<ListingMap[]>(SEED_LISTING_MAPS);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [demoMode, setDemoMode] = useState(false);
+
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [inventory, setInventory] = useState<InventoryRow[]>([]);
+  const [pendingMatches, setPendingMatches] = useState<ListingMap[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+  const [supportingOrders, setSupportingOrders] = useState<Order[]>([]);
   const [actions, setActions] = useState<ActionRecord[]>([]);
-  const [timings, setTimings] = useState<TimingRun[]>([]);
+
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
   const [search, setSearch] = useState("");
+  const [timings, setTimings] = useState<TimingRun[]>([]);
 
-  const now = DEMO_NOW;
-
-  const snapshots = useMemo(
-    () => snapshotAll(products, orders),
-    [products, orders],
-  );
-  const alerts = useMemo(
-    () => detectAlerts(products, orders, now),
-    [products, orders, now],
-  );
-
-  const visibleOrders = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return orders.filter((o) => {
-      if (channelFilter !== "all" && o.channel !== channelFilter) return false;
-      if (!q) return true;
-      return (
-        o.channelOrderId.toLowerCase().includes(q) ||
-        o.customerName.toLowerCase().includes(q) ||
-        o.lines.some((l) => l.listingTitle.toLowerCase().includes(q))
+  const refresh = useCallback(async () => {
+    setError(null);
+    try {
+      const [status, o, inv, al, act] = await Promise.all([
+        api.status(),
+        api.orders({ channel: channelFilter, q: search }),
+        api.inventory(),
+        api.alerts(),
+        api.actions(),
+      ]);
+      setDemoMode(status.demoMode);
+      setOrders(o.orders);
+      setInventory(inv.inventory);
+      setPendingMatches(inv.pendingMatches);
+      setAlerts(al.alerts);
+      setSupportingOrders(al.supportingOrders);
+      setActions(act.actions);
+    } catch (e) {
+      setError(
+        `${(e as Error).message}. Is the API running? Start it with \`npm run dev:api\`.`,
       );
-    });
-  }, [orders, channelFilter, search]);
+    } finally {
+      setLoading(false);
+    }
+  }, [channelFilter, search]);
 
-  const importOrder = useCallback(
-    (incoming: Order) => {
-      const result = orders.some((o) => o.key === incoming.key)
-        ? "updated"
-        : "created";
-      setOrders((prev) => {
-        const out = upsertOrder(prev, incoming);
-        return out.orders;
-      });
-      return result;
-    },
-    [orders],
-  );
+  // Filters are applied server-side, so a filter change is a refetch.
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
-  const reviewMatch = (id: string, confirmed: boolean) => {
-    const match = listingMaps.find((m) => m.id === id);
-    if (!match) return;
-    setListingMaps((prev) =>
-      prev.map((m) =>
-        m.id === id
-          ? { ...m, status: confirmed ? "confirmed" : "rejected" }
-          : m,
-      ),
-    );
-    setOrders((prev) =>
-      prev.map((order) =>
-        order.channel !== match.channel
-          ? order
-          : {
-              ...order,
-              lines: order.lines.map((line) =>
-                line.listingTitle.trim().toLowerCase() !==
-                match.listingTitle.trim().toLowerCase()
-                  ? line
-                  : {
-                      ...line,
-                      sku: confirmed ? match.sku : null,
-                      matchStatus: confirmed ? "matched" : "unmatched",
-                    },
-              ),
-            },
-      ),
-    );
-  };
-
-  const resetDemo = useCallback(() => {
-    setProducts(SEED_PRODUCTS);
-    setOrders(SEED_ORDERS);
-    setListingMaps(SEED_LISTING_MAPS);
-    setActions([]);
-    setTimings([]);
+  const resetDemo = useCallback(async () => {
+    await api.resetDemo();
     setChannelFilter("all");
     setSearch("");
-  }, []);
+    setTimings([]);
+    await refresh();
+  }, [refresh]);
+
+  const byKey = useMemo(() => {
+    const m = new Map<string, Order>();
+    for (const o of [...orders, ...supportingOrders]) m.set(o.key, o);
+    return m;
+  }, [orders, supportingOrders]);
 
   const value: Store = {
-    products,
-    orders,
-    listingMaps,
-    actions,
-    timings,
-    channelFilter,
-    search,
-    now,
-    snapshots,
-    alerts,
-    visibleOrders,
-    setChannelFilter,
-    setSearch,
-    importOrder,
-    setListingMaps,
-    reviewMatch,
-    setActions,
-    setTimings,
-    resetDemo,
+    loading, error, demoMode,
+    orders, inventory, pendingMatches, alerts, supportingOrders, actions,
+    channelFilter, search, setChannelFilter, setSearch,
+    timings, setTimings,
+    refresh, resetDemo,
+    orderByKey: (key) => byKey.get(key),
   };
 
-  return (
-    <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
-  );
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
 }
 
 export function useStore(): Store {

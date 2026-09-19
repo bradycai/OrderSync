@@ -1,46 +1,75 @@
-﻿import { useState } from "react";
+import { useEffect, useState } from "react";
+import { CHANNELS, CHANNEL_LABELS, type OrderStatus } from "@orderwatch/shared";
 import { ChannelBadge } from "../components/ChannelBadge";
 import { StatTile } from "../components/StatTile";
 import { Icon } from "../components/Icon";
 import type { View } from "../components/Sidebar";
-import { isLow } from "../lib/inventory";
+import { api } from "../api";
 import { useStore } from "../store";
-import { CHANNELS, CHANNEL_LABELS, type OrderStatus } from "../types";
+
 const STATUS_LABEL: Record<OrderStatus, string> = {
   awaiting_shipment: "Awaiting shipment",
   shipped: "Shipped",
   delivered: "Delivered",
   canceled: "Canceled",
 };
+
 const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     timeZone: "UTC",
   });
+
 export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
   const {
     orders,
-    products,
-    snapshots,
+    inventory,
     alerts,
-    visibleOrders,
     channelFilter,
     setChannelFilter,
     search,
     setSearch,
-    now,
   } = useStore();
   const [status, setStatus] = useState("all");
-  const awaiting = orders.filter(
-    (o) => o.status === "awaiting_shipment",
-  ).length;
-  const low = snapshots.filter(isLow).length;
-  const shortage = snapshots.find((s) => s.available < 0);
-  const shortageProduct = products.find((p) => p.sku === shortage?.sku);
-  const filtered = visibleOrders.filter(
-    (o) => status === "all" || o.status === status,
+
+  // `orders` is filtered server-side by channel + search, so the channel
+  // breakdown needs its own unfiltered read to stay meaningful while a chip
+  // is active.
+  const [channelTotals, setChannelTotals] = useState<Record<string, number>>(
+    {},
   );
+  useEffect(() => {
+    let cancelled = false;
+    void api
+      .orders({})
+      .then(({ orders: all }) => {
+        if (cancelled) return;
+        const counts: Record<string, number> = {};
+        for (const o of all) counts[o.channel] = (counts[o.channel] ?? 0) + 1;
+        setChannelTotals(counts);
+      })
+      .catch(() => {
+        // The store already surfaces API failures; the breakdown stays empty.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orders]);
+  const totalOrders = Object.values(channelTotals).reduce((a, b) => a + b, 0);
+
+  const awaiting = orders.filter((o) => o.status === "awaiting_shipment").length;
+  const low = inventory.filter((r) => r.isLow || r.isShort).length;
+  const shortage = inventory.find((r) => r.isShort);
+  // Deadlines are evaluated server-side; reuse the alert set rather than
+  // re-deriving "overdue" from a client clock.
+  const overdueKeys = new Set(
+    alerts
+      .filter((a) => a.kind === "overdue_shipment")
+      .flatMap((a) => a.relatedOrderKeys),
+  );
+  const filtered = orders.filter((o) => status === "all" || o.status === status);
+
   return (
     <div className="page overview-page">
       <header className="page-head head-with-action">
@@ -51,10 +80,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
             All your orders, inventory, and next steps. Right here.
           </p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={() => onNavigate("intake")}
-        >
+        <button className="btn btn-primary" onClick={() => onNavigate("intake")}>
           <Icon name="intake" size={17} />
           Import an email
           <Icon name="arrow" size={16} />
@@ -62,14 +88,19 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
       </header>
       <section className="tiles" aria-label="Operations summary">
         <StatTile
-          label="Total orders"
+          label="Orders shown"
           value={orders.length}
-          note="Across 4 sales channels"
+          note={
+            channelFilter === "all" && !search.trim()
+              ? "Across 4 sales channels"
+              : "Matching your current filters"
+          }
           icon="box"
         />
         <StatTile
           label="Awaiting shipment"
           value={awaiting}
+          tone={awaiting ? "warn" : "neutral"}
           note="Ready for your next move"
           icon="intake"
         />
@@ -84,9 +115,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
           label="Needs attention"
           value={alerts.length}
           tone={alerts.length ? "critical" : "neutral"}
-          note={
-            alerts.length ? "Let's get these sorted" : "You're all caught up"
-          }
+          note={alerts.length ? "Let's get these sorted" : "You're all caught up"}
           icon="attention"
         />
       </section>
@@ -105,8 +134,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
             <p>
               {shortage ? (
                 <>
-                  {shortageProduct?.title}, {shortageProduct?.color} /{" "}
-                  {shortageProduct?.size} has{" "}
+                  {shortage.title}, {shortage.color} / {shortage.size} has{" "}
                   <strong>{shortage.committed} units committed</strong> across{" "}
                   {shortage.contributingOrderKeys.length} orders, with only{" "}
                   {shortage.startingStock} in stock.
@@ -117,7 +145,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
             </p>
             <button
               className="text-button"
-              onClick={() => onNavigate("attention")}
+              onClick={() => onNavigate(shortage ? "inventory" : "attention")}
             >
               {shortage ? "Review shortage" : "Review next steps"}
               <Icon name="arrow" size={17} />
@@ -151,7 +179,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
               </span>
             )}
             <span className="stock-caption">
-              {shortageProduct?.sku ?? "INVENTORY IN BALANCE"}
+              {shortage?.sku ?? "INVENTORY IN BALANCE"}
             </span>
           </div>
         </section>
@@ -161,14 +189,12 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
             <span className="fine">Sample data</span>
           </div>
           {CHANNELS.map((c) => {
-            const count = orders.filter((o) => o.channel === c).length;
+            const count = channelTotals[c] ?? 0;
             return (
               <button
                 key={c}
                 className="channel-row"
-                onClick={() =>
-                  setChannelFilter(channelFilter === c ? "all" : c)
-                }
+                onClick={() => setChannelFilter(channelFilter === c ? "all" : c)}
                 aria-pressed={channelFilter === c}
               >
                 <ChannelBadge channel={c} />
@@ -176,7 +202,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
                   <span
                     className={`meter-${c}`}
                     style={{
-                      width: `${orders.length ? (count / orders.length) * 100 : 0}%`,
+                      width: `${totalOrders ? (count / totalOrders) * 100 : 0}%`,
                     }}
                   />
                 </span>
@@ -191,7 +217,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
         <div className="orders-heading">
           <div>
             <h2>
-              Your orders <span className="count-label">{orders.length}</span>
+              Your orders <span className="count-label">{totalOrders}</span>
             </h2>
             <p>A single home for every sale.</p>
           </div>
@@ -206,7 +232,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
               className={channelFilter === "all" ? "chip active" : "chip"}
               onClick={() => setChannelFilter("all")}
             >
-              All channels <span>{orders.length}</span>
+              All channels <span>{totalOrders}</span>
             </button>
             {CHANNELS.map((c) => (
               <button
@@ -262,9 +288,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
             <tbody>
               {filtered.map((o) =>
                 o.lines.map((line, i) => {
-                  const overdue =
-                    o.status === "awaiting_shipment" &&
-                    new Date(o.shipBy) < now;
+                  const overdue = overdueKeys.has(o.key);
                   return (
                     <tr key={`${o.key}-${i}`}>
                       <td className="mono order-id">
@@ -273,9 +297,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
                       <td>
                         {i === 0 && (
                           <span className="customer-cell">
-                            <span
-                              className={`customer-avatar avatar-${o.channel}`}
-                            >
+                            <span className={`customer-avatar avatar-${o.channel}`}>
                               {o.customerName
                                 .split(" ")
                                 .map((n) => n[0])
@@ -286,10 +308,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
                         )}
                       </td>
                       <td>
-                        <div
-                          className="product-title"
-                          title={line.listingTitle}
-                        >
+                        <div className="product-title" title={line.listingTitle}>
                           {line.listingTitle}
                         </div>
                         <span className="fine">
@@ -301,13 +320,9 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
                       <td className="num">{line.quantity}</td>
                       <td>{i === 0 && <ChannelBadge channel={o.channel} />}</td>
                       <td className="date-cell">{fmtDate(o.placedAt)}</td>
-                      <td
-                        className={overdue ? "overdue date-cell" : "date-cell"}
-                      >
+                      <td className={overdue ? "overdue date-cell" : "date-cell"}>
                         {fmtDate(o.shipBy)}
-                        {overdue && (
-                          <span className="deadline-note">Overdue</span>
-                        )}
+                        {overdue && <span className="deadline-note">Overdue</span>}
                       </td>
                       <td>
                         <span className={`status status-${o.status}`}>
@@ -341,7 +356,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
         </div>
         <div className="table-footer">
           <span>
-            Showing {filtered.length} of {orders.length} orders
+            Showing {filtered.length} of {totalOrders} orders
           </span>
           <span>
             <Icon name="check" size={14} />
@@ -363,7 +378,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
         </button>
         <Icon name="arrow" size={14} />
         <button onClick={() => onNavigate("attention")}>
-          <b>3</b>Review & approve
+          <b>3</b>Review &amp; approve
         </button>
         <span className="fine">You're always in control.</span>
       </div>

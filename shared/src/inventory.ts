@@ -1,4 +1,4 @@
-import type { InventorySnapshot, Order, Product } from "../types";
+import type { InventorySnapshot, Order, Product } from "./types";
 
 /**
  * Deterministic stock math. Starting stock is never mutated by imports —

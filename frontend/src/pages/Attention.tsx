@@ -1,84 +1,87 @@
 import { useEffect, useRef, useState } from "react";
+import {
+  RESOLUTION_LABELS,
+  evidenceLine,
+  type ActionRecord,
+  type Alert,
+  type Resolution,
+} from "@orderwatch/shared";
+import { api } from "../api";
 import { ChannelBadge } from "../components/ChannelBadge";
-import { evidenceLine } from "../lib/alerts";
 import { useStore } from "../store";
-import type { ActionRecord, Alert } from "../types";
+
+/** Which resolutions make sense for which kind of alert. */
+const OPTIONS: Record<Alert["kind"], Resolution[]> = {
+  insufficient_inventory: [
+    "delay_and_apologize",
+    "partial_shipment",
+    "offer_refund",
+    "inventory_correction",
+  ],
+  overdue_shipment: ["delay_and_apologize", "offer_refund", "cancel_and_refund"],
+};
 
 export function Attention() {
-  const { alerts, orders, actions, setActions } = useStore();
+  const { alerts, actions, orderByKey, refresh } = useStore();
   const [open, setOpen] = useState<Alert | null>(null);
+  const [resolution, setResolution] = useState<Resolution>("delay_and_apologize");
+  const [pending, setPending] = useState<ActionRecord | null>(null);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const [demoDraft, setDemoDraft] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<string | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
-  const request = useRef(0);
+
   useEffect(() => {
     if (open) dialog.current?.showModal();
     else dialog.current?.close();
   }, [open]);
-  useEffect(
-    () => () => {
-      request.current += 1;
-    },
-    [],
-  );
+
+  function openAlert(alert: Alert) {
+    setOpen(alert);
+    setResolution(OPTIONS[alert.kind][0]);
+    setPending(null);
+    setDraft("");
+    setDemoDraft(false);
+    setError(null);
+    setOutcome(null);
+  }
+
   function close() {
-    request.current += 1;
     setOpen(null);
   }
 
-  async function review(alert: Alert) {
-    const requestId = ++request.current;
-    setOpen(alert);
+  async function generate() {
+    if (!open) return;
     setBusy(true);
-    setDraft("");
-    setDemoDraft(false);
-    const context =
-      `${alert.title}\n${alert.explanation}\n` +
-      (alert.calculation
-        ? `Inventory: ${evidenceLine(alert.calculation)}\n`
-        : "");
+    setError(null);
     try {
-      const res = await fetch("/api/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ context }),
-        signal: AbortSignal.timeout(15000),
-      });
-      if (!res.ok) throw new Error("Draft service unavailable");
-      const d = await res.json();
-      if (!d.body) throw new Error("No draft returned");
-      if (request.current !== requestId) return;
-      setDraft(d.body);
-      setDemoDraft(Boolean(d.demoMode));
+      const out = await api.draft(open.id, resolution);
+      setPending(out.action);
+      setDraft(out.action.draft);
+      setDemoDraft(out.demoMode);
     } catch (e) {
-      if (request.current !== requestId) return;
-      const action = alert.suggestedAction;
-      const customer =
-        action.type === "message_customer"
-          ? orders.find((o) => o.key === action.orderKey)
-          : undefined;
-      setDraft(
-        `Hi ${customer?.customerName.split(" ")[0] ?? "there"},\n\nI'm reaching out about order ${customer?.channelOrderId ?? "with us"}. ${alert.kind === "insufficient_inventory" ? "We've found a stock shortage affecting an item in your order." : "Your order has not shipped by its expected deadline."} I'm sorry for the delay. We're checking fulfillment options and will follow up with a confirmed shipping update. If you'd prefer to discuss a cancellation or alternative, please let us know.\n\nThank you for your patience,\nStudio Supply`,
-      );
-      setDemoDraft(true);
+      setError((e as Error).message);
     } finally {
-      if (request.current === requestId) setBusy(false);
+      setBusy(false);
     }
   }
 
-  function approve() {
-    if (!open) return;
-    const record: ActionRecord = {
-      id: `act-${Date.now()}`,
-      alertId: open.id,
-      action: open.suggestedAction,
-      draft,
-      status: "approved_simulated",
-      decidedAt: new Date().toISOString(),
-    };
-    setActions([record, ...actions]);
-    setOpen(null);
+  async function approve() {
+    if (!pending) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const out = await api.approve(pending.id, draft);
+      setOutcome([out.notice, out.inventoryEffect].filter(Boolean).join(" "));
+      setPending(null);
+      await refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -87,8 +90,8 @@ export function Attention() {
         <p className="eyebrow">LESS GUESSWORK. CLEAR NEXT STEPS.</p>
         <h1>Needs attention</h1>
         <p className="sub">
-          Detected by deterministic rules. Messages are AI-drafted and always
-          editable.
+          Detected by deterministic rules on the server. Messages are AI-drafted,
+          always editable, and never sent.
         </p>
       </header>
 
@@ -97,7 +100,9 @@ export function Attention() {
       )}
 
       {alerts.map((a) => {
-        const done = actions.find((x) => x.alertId === a.id);
+        const done = actions.find(
+          (x) => x.alertId === a.id && x.status === "approved_simulated",
+        );
         return (
           <article key={a.id} className={`card alert alert-${a.severity}`}>
             <div className="alert-head">
@@ -114,7 +119,8 @@ export function Attention() {
             <table className="table compact">
               <tbody>
                 {a.relatedOrderKeys.map((k) => {
-                  const o = orders.find((x) => x.key === k)!;
+                  const o = orderByKey(k);
+                  if (!o) return null;
                   return (
                     <tr key={k}>
                       <td>
@@ -149,7 +155,7 @@ export function Attention() {
                   {new Date(done.decidedAt!).toLocaleTimeString()}
                 </span>
               ) : (
-                <button className="btn btn-primary" onClick={() => review(a)}>
+                <button className="btn btn-primary" onClick={() => openAlert(a)}>
                   {a.suggestedAction.label}
                 </button>
               )}
@@ -172,39 +178,126 @@ export function Attention() {
                 Close
               </button>
             </div>
+
             <p className="callout callout-warn">
               <strong>Simulated.</strong> Approving records the outcome in this
               demo. No email is sent and no marketplace is updated.
             </p>
             <p className="fine">{open.title}</p>
-            {demoDraft && (
-              <p className="pill pill-demo">
-                Prepared demo draft · no live AI used
-              </p>
-            )}
-            <label className="form-label" htmlFor="message-draft">
-              Customer message · edit before approving
+
+            <label className="form-label" htmlFor="resolution">
+              How do you want to resolve this?
             </label>
-            <textarea
-              id="message-draft"
-              className="paste"
-              rows={12}
-              value={busy ? "Drafting…" : draft}
-              onChange={(e) => setDraft(e.target.value)}
-              disabled={busy}
-            />
-            <div className="actions-row">
-              <button
-                className="btn btn-primary"
-                disabled={busy || !draft}
-                onClick={approve}
-              >
-                Approve (simulated send)
-              </button>
-              <button className="btn btn-ghost" onClick={close}>
-                Cancel
-              </button>
-            </div>
+            <select
+              id="resolution"
+              className="search wide"
+              value={resolution}
+              onChange={(e) => setResolution(e.target.value as Resolution)}
+              disabled={busy || !!pending}
+            >
+              {OPTIONS[open.kind].map((r) => (
+                <option key={r} value={r}>
+                  {RESOLUTION_LABELS[r]}
+                </option>
+              ))}
+            </select>
+
+            {!pending && !outcome ? (
+              <div className="actions-row">
+                <button
+                  className="btn btn-primary"
+                  disabled={busy}
+                  onClick={generate}
+                >
+                  {busy
+                    ? "Preparing…"
+                    : resolution === "inventory_correction"
+                      ? "Review stock correction"
+                      : "Draft the message"}
+                </button>
+              </div>
+            ) : pending ? (
+              <>
+                {pending.action.type === "adjust_inventory" ? (
+                  <section
+                    className="card"
+                    aria-label="Proposed inventory correction"
+                  >
+                    <h3>Verify the physical stock count</h3>
+                    <p>
+                      This proposes adding stock to the demo. Approve only if the
+                      corrected count is accurate.
+                    </p>
+                    <dl className="kv">
+                      <dt>SKU</dt>
+                      <dd>{pending.action.sku}</dd>
+                      <dt>Current stock</dt>
+                      <dd>{pending.action.expectedStartingStock}</dd>
+                      <dt>Adjustment</dt>
+                      <dd>+{pending.action.delta}</dd>
+                      <dt>Proposed stock</dt>
+                      <dd>
+                        {(pending.action.expectedStartingStock ?? 0) +
+                          pending.action.delta}
+                      </dd>
+                      <dt>Committed</dt>
+                      <dd>{pending.action.expectedCommitted}</dd>
+                      <dt>Available after</dt>
+                      <dd>
+                        {(pending.action.expectedStartingStock ?? 0) +
+                          pending.action.delta -
+                          (pending.action.expectedCommitted ?? 0)}
+                      </dd>
+                    </dl>
+                    <p className="fine">
+                      Demo inventory only. No message will be sent or marketplace
+                      updated.
+                    </p>
+                  </section>
+                ) : (
+                  <>
+                    {demoDraft && (
+                      <p className="pill pill-demo">
+                        Prepared demo draft · no live AI used
+                      </p>
+                    )}
+                    <label className="form-label" htmlFor="message-draft">
+                      Customer message · edit before approving
+                    </label>
+                    <textarea
+                      id="message-draft"
+                      className="paste"
+                      rows={12}
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      disabled={busy}
+                    />
+                  </>
+                )}
+                <div className="actions-row">
+                  <button
+                    className="btn btn-primary"
+                    disabled={busy || !draft}
+                    onClick={approve}
+                  >
+                    {pending.action.type === "adjust_inventory"
+                      ? "Approve demo stock correction"
+                      : "Approve (simulated send)"}
+                  </button>
+                  <button
+                    className="btn btn-ghost"
+                    onClick={() => setPending(null)}
+                  >
+                    {pending.action.type === "adjust_inventory"
+                      ? "Review again"
+                      : "Re-draft"}
+                  </button>
+                </div>
+              </>
+            ) : null}
+
+            {error && <p className="error">{error}</p>}
+            {outcome && <p className="success">{outcome}</p>}
           </>
         )}
       </dialog>
