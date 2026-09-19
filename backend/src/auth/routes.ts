@@ -19,7 +19,12 @@ const EmailSchema = z
 const SignUpSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   email: EmailSchema,
-  password: z.string().min(8, "Password must be at least 8 characters"),
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters")
+    // Capped on sign-up only: adding a max to sign-in would lock out any
+    // account that already registered a longer password.
+    .max(128, "Password must be 128 characters or fewer"),
 });
 
 const SignInSchema = z.object({

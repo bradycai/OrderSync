@@ -3,12 +3,15 @@ import { AuthLayout, Field } from "../components/AuthLayout";
 import { useAuth } from "../auth/AuthProvider";
 
 const MIN_PASSWORD = 8;
+/** Mirrors the server's cap. Sign-in stays unbounded so older accounts still work. */
+const MAX_PASSWORD = 128;
 
 export function SignUp({ onSwitch }: { onSwitch: () => void }) {
   const { signUp } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [error, setError] = useState<{ message: string; field?: string } | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -23,6 +26,17 @@ export function SignUp({ onSwitch }: { onSwitch: () => void }) {
         message: `Password must be at least ${MIN_PASSWORD} characters`,
         field: "password",
       });
+    }
+    if (password.length > MAX_PASSWORD) {
+      return setError({
+        message: `Password must be ${MAX_PASSWORD} characters or fewer`,
+        field: "password",
+      });
+    }
+    // Confirmation never reaches the server — it only guards against a typo in
+    // a field the founder cannot read back.
+    if (confirm !== password) {
+      return setError({ message: "Passwords do not match", field: "confirm" });
     }
 
     setBusy(true);
@@ -88,6 +102,17 @@ export function SignUp({ onSwitch }: { onSwitch: () => void }) {
           autoComplete="new-password"
           placeholder={`At least ${MIN_PASSWORD} characters`}
           error={fieldError("password")}
+        />
+
+        <Field
+          id="confirm"
+          label="Confirm password"
+          type="password"
+          value={confirm}
+          onChange={setConfirm}
+          autoComplete="new-password"
+          placeholder="Re-enter your password"
+          error={fieldError("confirm")}
         />
 
         <button className="btn btn-primary btn-block" type="submit" disabled={busy}>

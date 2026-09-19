@@ -1,179 +1,210 @@
 # OrderSync Backend — Feature Backlog
 
-Where the backend stands today (`backend/src/index.ts`):
+Last revised against commit `7eb554c` (merge of `bradycai/Jayden`).
 
-- `GET  /api/status` — demo-mode flag + model id
-- `POST /api/extract` — email text → structured order (AI)
-- `POST /api/match` — listing title → SKU suggestion (AI)
-- `POST /api/draft` — context → customer message (AI)
-- `POST /api/auth/{signup,signin,signout}`, `GET /api/auth/me` — scrypt hashes,
-  cookie sessions, JSON files under `backend/data/`
+Legend: ✅ shipped · 🟡 partial · ⬜ not started · 🔴 broken
 
-Everything else is frontend-only. The domain model, the seed catalog, the stock
-math (`frontend/src/lib/inventory.ts`), dedupe (`lib/orders.ts`), alerts
-(`lib/alerts.ts`), and timing runs all live in a React `useState` store that
-resets on reload. **The single biggest gap is that the backend owns no domain
-state at all.** The list below is ordered so that gap closes first.
+## What changed since the first draft
+
+Most of Tier 1 landed, and the architecture moved further than the original plan
+asked for. A third workspace, `shared/`, now holds the domain model and all the
+deterministic logic, imported by both the API and the UI — that was #21, and
+doing it early made #3 nearly free. The frontend no longer computes anything:
+`store.tsx` is a cache over five API calls with a single `refresh()`.
+
+Persistence (#1) landed on `node:sqlite` with no new dependency. The schema is
+**one JSON blob per row** (`id TEXT PRIMARY KEY, data TEXT CHECK(json_valid(data))`)
+rather than the relational tables originally sketched — see #1 below for what
+that costs. Order identity is a real unique index over
+`json_extract(data,'$.channel')` + `json_extract(data,'$.channelOrderId')`, so
+the dedupe guarantee is enforced by the database as intended.
+
+**Two regressions arrived with the merge and are now the top of the list.**
 
 ---
 
-## Tier 1 — Make the backend own the data
+## Tier 0 — Broken, fix first
 
-Without these, every other feature is building on sand: two browser tabs
-disagree, a reload wipes the demo, and nothing is per-user.
+### 🔴 0a. The API does not boot
+`backend/src/index.ts:14,16` call `cookieParser()` and mount `authRoutes`, but
+neither is imported — the import lines were lost in the merge.
 
-### 1. Persistence layer beyond `jsonTable`
-`fileStore.ts` rewrites the whole array on every write and has no locking — two
-concurrent imports can lose one. Its own comment already calls out the intent:
-"Swapping this file for SQLite is the only change a real store would need."
+```
+ReferenceError: cookieParser is not defined
+    at backend/src/index.ts:14:5
+```
 
-- Move to SQLite (`better-sqlite3` or `libsql`) with a migrations folder.
-- Tables: `users`, `sessions`, `products`, `listing_maps`, `orders`,
-  `order_lines`, `actions`, `timing_runs`.
-- Every domain row carries a `user_id` — the prototype is single-tenant by
-  accident, not by design.
+`cookie-parser` was also dropped from `backend/package.json` dependencies (only
+`@types/cookie-parser` survives, in devDependencies). It is still physically
+present in `node_modules` from the earlier install, which is why the breakage
+looks like a missing import rather than a missing package.
 
-### 2. Orders API
-- `GET    /api/orders` — filter by `channel`, `status`, free-text `q`, paginated
-- `GET    /api/orders/:key`
-- `POST   /api/orders` — import; runs the same upsert rule as `lib/orders.ts`
-- `PATCH  /api/orders/:key` — status changes, line edits
+This is also why `backend/test/database.test.ts` fails — "API exited 1". The
+SQLite unit test passes; every HTTP assertion in the second test is unreachable.
+
+Fix: restore both imports, move `cookie-parser` back to `dependencies`.
+
+### 🔴 0b. The frontend auth layer is orphaned the same way
+`frontend/src/App.tsx:13` calls `useAuth()` with no import, and `SignIn`/`SignUp`
+are imported but never rendered — there is no signed-out branch any more.
+`components/Sidebar.tsx:16` destructures an unused `user`.
+
+```
+src/App.tsx(13,22): error TS2304: Cannot find name 'useAuth'
+```
+
+`frontend/src/auth/AuthProvider.tsx` still exists and is unreferenced.
+
+### 🔴 0c. `npm run typecheck` and `npm test` both fail
+After a fresh `npm install` (needed anyway — the `@orderwatch/shared` symlink is
+absent from `node_modules` until workspaces are re-linked), the only remaining
+type errors are 0a and 0b. Getting these two green is the gate for everything
+below.
+
+### 🔴 0d. Every domain route is unauthenticated
+`requireAuth` is defined in `auth/middleware.ts` and applied to **zero** routes.
+`/api/orders`, `/api/inventory`, `/api/alerts`, `/api/actions`, and
+`/api/demo/reset` are all open, and `/api/orders/parse-email` spends model
+tokens on unauthenticated input.
+
+There is also no `user_id` anywhere in the schema — the store is single-tenant
+by construction, so gating the routes is necessary but not sufficient. See #2.
+
+---
+
+## Tier 1 — Finish what's started
+
+### 🟡 1. Persistence
+✅ `node:sqlite`, WAL, `busy_timeout`, `PRAGMA user_version` migration gate,
+transactional `write()` with rollback, explicit `reset()`. Covered by a passing test.
+
+Remaining:
+- **`save()` rewrites by whole-table diff.** Every `write()` reads all four
+  tables, diffs each row's serialized JSON, and issues an upsert per change.
+  That is the JSON-array read-modify-write pattern re-implemented inside a
+  transaction — correct, but it scales with total row count, not change count.
+- **JSON blobs can't be indexed or queried.** Filtering in `GET /api/orders`
+  happens in JS over every row. A relational `orders`/`order_lines` split is the
+  eventual fix; a generated-column index is the cheap one.
+- **No `user_id` column**, which blocks multi-tenancy (#2).
+
+### ⬜ 2. Multi-tenancy
+Promoted out of #1 because it is now the single largest structural gap. Add
+`user_id` to every domain row, scope every query to `req.user.id`, and make
+`/api/demo/reset` reseed one user rather than the whole database.
+
+### 🟡 3. Orders API
+✅ `GET /api/orders` with `channel` / `status` / `q` filters,
+`POST /api/orders/parse-email` (preview-only, nothing written),
+`POST /api/orders` (upsert, unknown-SKU rejection, `rememberMapping` teaches the
+mapping on confirm).
+
+Remaining:
+- `GET /api/orders/:key` — no single-order fetch exists
+- `PATCH /api/orders/:key` — status changes and line edits; marking an order
+  shipped or canceled is currently impossible through the API, which means the
+  "canceled orders release stock" rule cannot actually be exercised
 - `DELETE /api/orders/:key`
+- Pagination — `GET /` returns every matching row
 
-Identity stays `channel + channelOrderId`. Enforce it as a **unique index**, not
-just an application-level `find` — that turns idempotency into a database
-guarantee instead of a convention.
+### ✅ 4. Server-side deterministic engine
+Logic lives in `shared/`; `GET /api/inventory` and `GET /api/alerts` recompute
+per request. `AlertsResponse` ships `supportingOrders` so the UI needs no second
+call.
 
-### 3. Server-side deterministic engine
-Port `inventory.ts`, `orders.ts`, and `alerts.ts` into `backend/src/domain/` and
-have the frontend read results instead of computing them.
+One open item: `GET /api/overview`. `store.tsx` `refresh()` fires five parallel
+requests on every filter keystroke, and `channelFilter`/`search` are in the
+`useCallback` deps — so typing in the search box refetches status, inventory,
+alerts, and actions along with orders.
 
-- `GET /api/inventory` — `InventorySnapshot[]`, recomputed from current orders
-- `GET /api/alerts` — shortage + overdue detection
-- `GET /api/overview` — one payload for the dashboard (counts, alerts, snapshots)
+### 🟡 5. Products & listing maps
+✅ Mappings are taught on import (`rememberMapping` in `routes/orders.ts:215`);
+pending matches surface through `GET /api/inventory`.
 
-Keeps the README's rule intact: AI handles judgment, TypeScript handles
-arithmetic — it just runs on the server where the data is.
+Remaining:
+- `GET/POST/PATCH /api/products` — no catalog CRUD; `startingStock` is editable
+  only as a side effect of approving an `adjust_inventory` action
+- `POST /api/listing-maps/:id/confirm` / `/reject` — `Inventory.tsx` lists
+  pending matches read-only, with no way to act on one
+- Nothing ever writes a `pending` mapping: `parse-email` returns suggestions in
+  the preview, and `POST /orders` records only confirmed ones. The `pending`
+  state and `source: "ai"` are effectively dead until this lands.
 
-### 4. Products & listing maps API
-- `GET/POST/PATCH /api/products` — catalog and `startingStock`
-- `GET /api/listing-maps`
-- `POST /api/listing-maps/:id/confirm` / `/reject` — closes the one open `TODO`
-  in the codebase (`frontend/src/pages/Inventory.tsx:27`)
-- Pending maps stay excluded from stock math until confirmed
+### ✅ 6. Actions & approvals
+Shipped, with a different shape than planned — draft generation creates the
+action at `POST /api/alerts/:id/draft`, and a `Resolution` enum lets the founder
+pick the fix before drafting. See `docs/plan-05-actions-api.md` for the delta
+and the audit-trail gaps that remain open.
 
-### 5. Actions & approvals API
-- `POST  /api/actions` — create from an alert's `suggestedAction`
-- `PATCH /api/actions/:id` — edit draft, approve (simulated), dismiss
-- Persist `decidedAt` and the final edited draft — right now approvals vanish
-- Immutable audit log: who approved what, when, and the exact text sent
-
-### 6. Per-user seed & reset
-`POST /api/demo/reset` — reseed that user's rows from a server-side copy of
-`frontend/src/data/seed.ts`. Move `DEMO_NOW` and the sample emails to the
-backend too, so the demo script is not duplicated across the two workspaces.
+### 🟡 7. Seed & reset
+✅ `POST /api/demo/reset`, seed in `shared/src/seed.ts`, `DEMO_NOW` fixed clock.
+Remaining: per-user scoping (#2), and the route is unauthenticated — anyone who
+can reach the port can wipe the database.
 
 ---
 
-## Tier 2 — Harden what already exists
+## Tier 2 — Harden
 
-### 7. Request validation on every route
-`/api/extract`, `/api/match`, and `/api/draft` read `req.body` through raw `as`
-casts. A missing `catalog` on `/api/match` throws inside the handler. Zod
-schemas exist for model *output* — add them for input, and reuse `firstIssue()`
-from `auth/routes.ts` for consistent error shapes.
+### 🟡 8. Request validation
+✅ Zod on every route body and on `GET /api/orders` query params.
+Remaining: `customerEmail` is `z.string().min(1)` — not an email check, so
+`parse-email` output goes in unvalidated.
 
-### 8. Error handling & structured logging
-- Express 5 async error middleware — one place that turns a throw into a
-  response, instead of a try/catch per route
-- Request id per call, propagated into logs and error bodies
-- A model failure should log the request id, not the email body
+### 🟡 9. Error handling & logging
+✅ Global error middleware and a JSON 404 handler in `index.ts`.
+Remaining: the handler returns `err.message` verbatim to the client, which will
+leak internals once anything real is behind it. No request ids, no structured logs.
 
-### 9. Rate limiting & cost controls
-Every AI route is an unmetered call to a paid API behind a cookie.
+### ⬜ 10. Rate limiting & cost controls
+Unchanged and now more urgent: `parse-email` makes one extraction call **plus one
+match call per unresolved line**, unauthenticated, with no cap.
 
-- Per-user limits on `/api/extract`, `/api/match`, `/api/draft`
-- Max payload size per route (the global `1mb` is too generous for `/api/match`)
-- Record token usage per call; expose a per-user monthly total
+### 🟡 11. Auth gaps
+Blocked on 0a/0b. Once restored: session rotation on sign-in, revoke-all-devices,
+password change/reset, sign-in throttling, expired-session pruning on a timer.
 
-### 10. Auth gaps
-- Session rotation on sign-in (currently every sign-in appends a new row)
-- `GET /api/auth/sessions` + revoke-all-devices
-- Password change and reset flow
-- Sign-in attempt throttling — the generic-error branch prevents enumeration but
-  nothing slows a password guesser down
-- Prune expired sessions on a timer, not only as a side effect of writes
-
-### 11. CSRF protection
-Cookie auth with `sameSite: "lax"` covers the common case, but state-changing
-routes should carry a double-submit token before this is deployed anywhere.
-
-### 12. Health & readiness
-Split `/api/status` into `/api/health` (liveness, no auth) and keep the
-demo-mode/model info where it is. Add DB connectivity to the readiness check.
+### ⬜ 12. CSRF protection
+### 🟡 13. Health & readiness
+✅ `/api/status` returns `demoMode`, `model`, `simulated: true`.
+Remaining: split liveness onto an unauthenticated `/api/health` with a DB check.
 
 ---
 
 ## Tier 3 — New capability
 
-### 13. Real channel connectors
-Replace pasted email with actual ingestion, behind one `ChannelAdapter`
-interface so Shopify/TikTok/Amazon/eBay differ only in their adapter.
-
-- Webhook receivers with signature verification per channel
-- OAuth token storage and refresh
-- Polling fallback with cursor-based sync state
-- Dry-run mode so the prototype keeps working with no credentials
-
-### 14. Inbound email ingestion
-A mail webhook (Postmark/SES) that pipes straight into `/api/extract`, so orders
-land without anyone copy-pasting.
-
-### 15. Background jobs
-- Overdue-shipment sweep on a schedule instead of on-render
-- Low-stock digest
-- Retry queue for failed model calls
-- A durable job table beats `setInterval` once there is more than one process
-
-### 16. Notifications
-Email/push when an alert crosses critical, with per-user thresholds and quiet
-hours. `LOW_STOCK_THRESHOLD` is currently a hardcoded `2` in the frontend.
-
-### 17. Simulated outward actions become real
-Behind an explicit per-user opt-in flag: send the approved customer email, push
-the stock correction to each marketplace. Keep simulation the default — the
-README promises nothing leaves the machine.
-
-### 18. Export & reporting
-- `GET /api/export/orders.csv`
-- Inventory history — snapshot daily so stock movement is chartable
-- Timing runs persisted server-side for the manual-vs-assisted comparison
-
-### 19. AI streaming and caching
-- Stream `/api/draft` so the founder sees text appear rather than waiting
-- Cache `/api/match` results by `listingTitle + catalog hash` — the same
-  unmatched title is re-sent on every import today
-- Prompt caching on the system prompts
+Unchanged from the first draft: ⬜ 14 channel connectors behind one
+`ChannelAdapter` · ⬜ 15 inbound email ingestion · ⬜ 16 background jobs
+(the overdue sweep is recomputed per request against a frozen `DEMO_NOW`, so a
+real clock is a prerequisite) · ⬜ 17 notifications · ⬜ 18 real outward actions
+behind an opt-in · ⬜ 19 export & reporting · ⬜ 20 AI streaming and caching
+(`parse-email` re-asks the model for the same listing title on every import).
 
 ---
 
-## Tier 4 — Engineering foundation
+## Tier 4 — Foundation
 
-### 20. Test suite
-There are zero tests. The deterministic logic is the highest-value target and
-the easiest to cover: stock math, dedupe/upsert idempotency, `defaultShipBy`
-business-day arithmetic, alert thresholds, password verify against malformed
-stored values.
+### 🟡 21. Tests
+✅ `backend/test/database.test.ts` — two tests on `node:test`: SQLite
+persistence/rollback/reset, and a full HTTP round-trip that restarts the server
+to prove durability. Good shape.
 
-- Vitest for unit tests, supertest for routes
-- An in-memory SQLite fixture per test
+Remaining:
+- **The HTTP test currently fails** (0a) — fix that before adding more
+- Unit coverage for `shared/`: stock math, upsert idempotency, `defaultShipBy`
+  business-day arithmetic, alert thresholds, `resolveLine` on pending mappings
+- `passwords.ts` `verifyPassword` against malformed stored values
+- Route-level tests for the 400/404/409 branches
 
-### 21. API contract shared with the frontend
-Export the Zod schemas from a shared workspace package (or generate an OpenAPI
-spec) so `frontend/src/types.ts` stops being a hand-maintained copy of the
-backend's shapes.
+### ✅ 22. Shared API contract
+`@orderwatch/shared` exports the domain model *and* the request/response types
+(`ParsePreview`, `AlertsResponse`, `InventoryRow`, `DemoStatus`, …), consumed by
+`frontend/src/api.ts`. The duplicate `frontend/src/types.ts` is gone.
 
-### 22. Deployment
-Dockerfile, a real `build` script for the backend (today `start` runs `tsx` over
-TypeScript source), config validation at boot that fails loudly on a bad `.env`,
-and graceful shutdown.
+Remaining: the Zod schemas still live in `backend/src/routes/*` and are
+hand-mirrored by the TypeScript interfaces in `shared/src/types.ts`. Deriving the
+interfaces from the schemas would close the last gap.
+
+### ⬜ 23. Deployment
+Dockerfile; a real build step (`start` still runs `tsx` over TypeScript source);
+boot-time config validation; `engines` now pins Node ≥24 for `node:sqlite`, so
+that constraint needs to survive into the runtime image.
