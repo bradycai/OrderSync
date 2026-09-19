@@ -1,4 +1,7 @@
 import "./env";
+import cookieParser from "cookie-parser";
+import { authRoutes } from "./auth/routes";
+import { requireAuth } from "./auth/middleware";
 import express, { type NextFunction, type Request, type Response } from "express";
 import type { DemoStatus } from "@orderwatch/shared";
 import { isDemoMode } from "./ai";
@@ -23,6 +26,9 @@ app.get("/api/status", (_req, res) => {
   const body: DemoStatus = { demoMode: isDemoMode(), model: MODEL, simulated: true };
   res.json(body);
 });
+
+// Auth and status remain public; operational data requires a session.
+app.use("/api", requireAuth);
 
 app.use("/api/orders", ordersRouter);
 app.use("/api/inventory", inventoryRouter);

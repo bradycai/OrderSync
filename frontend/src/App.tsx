@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useAuth } from "./auth/AuthProvider";
 import { Sidebar, type View } from "./components/Sidebar";
 import { Attention } from "./pages/Attention";
 import { Intake } from "./pages/Intake";
@@ -7,10 +8,25 @@ import { Overview } from "./pages/Overview";
 import { SignIn } from "./pages/SignIn";
 import { SignUp } from "./pages/SignUp";
 import { Timing } from "./pages/Timing";
-import { useStore } from "./store";
+import { StoreProvider, useStore } from "./store";
 
 export function App() {
   const { status } = useAuth();
+  const [authView, setAuthView] = useState<"signin" | "signup">("signin");
+
+  if (status === "loading") return <div className="auth-shell" />;
+  if (status === "anon") {
+    return authView === "signin" ? (
+      <SignIn onSwitch={() => setAuthView("signup")} />
+    ) : (
+      <SignUp onSwitch={() => setAuthView("signin")} />
+    );
+  }
+
+  return <StoreProvider><Dashboard /></StoreProvider>;
+}
+
+function Dashboard() {
   const [view, setView] = useState<View>("overview");
   const { demoMode, loading, error } = useStore();
 

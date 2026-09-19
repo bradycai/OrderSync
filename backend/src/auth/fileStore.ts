@@ -3,7 +3,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /** Everything the auth layer persists lives here. Gitignored — it holds hashes. */
-const DATA_DIR = resolve(dirname(fileURLToPath(import.meta.url)), "../../data");
+const DATA_DIR = process.env.AUTH_DATA_DIR || resolve(dirname(fileURLToPath(import.meta.url)), "../../data");
 
 /**
  * A JSON array on disk, standing in for a database table.

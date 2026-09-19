@@ -36,10 +36,11 @@ test("API imports, mappings, approvals, stock corrections and reset survive rest
   const dir = mkdtempSync(join(tmpdir(), "orderwatch-api-"));
   let child: ReturnType<typeof spawn> | undefined;
   let base = "";
+  let cookie = "";
   async function start() {
     child = spawn(process.execPath, ["--import", "tsx", "src/index.ts"], {
       cwd: new URL("..", import.meta.url),
-      env: { ...process.env, DATABASE_PATH: join(dir, "api.sqlite"), API_PORT: "0", ANTHROPIC_API_KEY: "" },
+      env: { ...process.env, DATABASE_PATH: join(dir, "api.sqlite"), AUTH_DATA_DIR: join(dir, "auth"), API_PORT: "0", ANTHROPIC_API_KEY: "" },
       stdio: ["ignore", "pipe", "pipe"],
     });
     base = await new Promise<string>((resolve, reject) => {
@@ -53,13 +54,26 @@ test("API imports, mappings, approvals, stock corrections and reset survive rest
   }
   async function stop() { if (child && child.exitCode === null) { const done = once(child, "exit"); child.kill("SIGTERM"); await done; } }
   async function request(path: string, body?: unknown, expected = 200) {
-    const response = await fetch(base + path, body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const response = await fetch(base + path, {
+      method: body === undefined ? "GET" : "POST",
+      headers: { "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    });
+    const setCookie = response.headers.get("set-cookie");
+    if (setCookie) cookie = setCookie.split(";")[0];
+    if (response.status === 204) { assert.equal(response.status, expected); return null; }
     const data = await response.json();
     assert.equal(response.status, expected, JSON.stringify(data));
     return data;
   }
   try {
     await start();
+    await request("/auth/me", undefined, 401);
+    await request("/inventory", undefined, 401);
+    await request("/orders", {}, 401);
+    await request("/demo/reset", {}, 401);
+    await request("/auth/signup", { name: "Test", email: "merge-test@example.com", password: "test-password-123" }, 201);
+    assert.equal((await request("/auth/me")).user.email, "merge-test@example.com");
     const inventory = (await request("/inventory")).inventory;
     const sku = inventory[0].sku;
     const input = { channel: "shopify", channelOrderId: "persistence-test", customerName: "Test", customerEmail: "test@example.com", placedAt: "2026-09-01T00:00:00Z", lines: [{ listingTitle: "Persistence test garment", quantity: 100, sku }] };
@@ -73,6 +87,7 @@ test("API imports, mappings, approvals, stock corrections and reset survive rest
     const corrected = (await request("/inventory")).inventory.find((p: any) => p.sku === sku).startingStock;
     assert.ok(corrected > inventory[0].startingStock);
     await stop(); await start();
+    assert.equal((await request("/auth/me")).user.email, "merge-test@example.com");
     const orders = (await request("/orders?q=persistence-test")).orders;
     assert.equal(orders.length, 1);
     assert.equal(orders[0].revisions.length, 2);
@@ -88,5 +103,9 @@ test("API imports, mappings, approvals, stock corrections and reset survive rest
     assert.equal((await request("/orders?q=persistence-test")).orders.length, 0);
     assert.equal((await request("/actions")).actions.length, 0);
     assert.equal((await request("/inventory")).inventory.find((p: any) => p.sku === sku).startingStock, inventory[0].startingStock);
+    await request("/auth/signout", {}, 204);
+    await request("/inventory", undefined, 401);
+    await request("/auth/signin", { email: "merge-test@example.com", password: "test-password-123" });
+    await request("/inventory");
   } finally { await stop(); rmSync(dir, { recursive: true, force: true }); }
 });

@@ -13,6 +13,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.127.0",
     "@orderwatch/shared": "*",
+    "cookie-parser": "^1.4.7",
     "dotenv": "^17.0.0",
     "express": "^5.1.0",
     "zod": "^4.1.0"

@@ -13,7 +13,7 @@ const NAV: { id: View; label: string; hint: string }[] = [
 
 export function Sidebar({ view, onNavigate }: { view: View; onNavigate: (v: View) => void }) {
   const { alerts, resetDemo } = useStore();
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
 
   return (
     <nav className="sidebar">
