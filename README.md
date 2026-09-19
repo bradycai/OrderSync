@@ -16,10 +16,14 @@ demo data, AI endpoints, and a working UI shell. Search for `TODO` for the gaps.
 ## Setup
 
 ```bash
-npm install
+npm install              # one install covers both workspaces
 cp .env.example .env     # optional — see AI credentials below
 npm run dev              # web on :5173, API on :8787
 ```
+
+`backend/` and `frontend/` are separate npm workspaces. Run one at a time with
+`npm run dev:api` or `npm run dev:web`, or work inside a folder directly
+(`npm run dev -w backend`).
 
 ### AI credentials
 
@@ -47,29 +51,32 @@ sample outputs, every one of them labeled in the UI. The demo flow works either 
   deadlines, and alert thresholds are plain deterministic TypeScript.
 - **Starting stock is immutable.** `Product.startingStock` is physical stock on hand.
   Commitments are recomputed from the current order list on every render
-  (`src/lib/inventory.ts`), so re-importing a notification can never double-deduct.
+  (`frontend/src/lib/inventory.ts`), so re-importing a notification can never double-deduct.
 - **Canceled orders hold no stock**, and lines whose SKU match is still
   `pending_review` are excluded from commitments until a human confirms them.
-- **Identity is `channel + marketplace order id`** (`src/lib/orders.ts`). That single
+- **Identity is `channel + marketplace order id`** (`frontend/src/lib/orders.ts`). That single
   rule is what makes repeated notifications idempotent.
 - **No time-savings claims.** The demo timer records only what you actually measure.
 
 ## Layout
 
 ```
-server/
-  index.ts         Express API: /api/status, /api/extract, /api/match, /api/draft
-  claude.ts        Anthropic client, model id, Zod output schemas
-  demoOutputs.ts   Prepared sample outputs used when no API key is present
-src/
-  types.ts         Domain model
-  store.tsx        In-memory app state + reset
-  data/seed.ts     Synthetic catalog, listing maps, orders, sample emails
-  lib/inventory.ts Deterministic stock math
-  lib/orders.ts    Identity, dedupe/upsert, deadlines, SKU resolution
-  lib/alerts.ts    Shortage and overdue detection
-  lib/timing.ts    Manual vs assisted timing
-  pages/           Overview, Intake, Attention, Inventory, Timing
+backend/                 Express + Anthropic API (its own package.json)
+  src/index.ts           /api/status, /api/extract, /api/match, /api/draft
+  src/claude.ts          Anthropic client, model id, Zod output schemas
+  src/demoOutputs.ts     Prepared sample outputs used when no API key is present
+frontend/                Vite + React app (its own package.json)
+  index.html
+  vite.config.ts         Dev server on :5173, proxies /api to :8787
+  src/types.ts           Domain model
+  src/store.tsx          In-memory app state + reset
+  src/data/seed.ts       Synthetic catalog, listing maps, orders, sample emails
+  src/lib/inventory.ts   Deterministic stock math
+  src/lib/orders.ts      Identity, dedupe/upsert, deadlines, SKU resolution
+  src/lib/alerts.ts      Shortage and overdue detection
+  src/lib/timing.ts      Manual vs assisted timing
+  src/pages/             Overview, Intake, Attention, Inventory, Timing
+.env                     Read by the backend; shared across the repo root
 ```
 
 State is in-memory only — a reload restores the seed data, which is the behavior

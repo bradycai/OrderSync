@@ -1,5 +1,10 @@
-import "dotenv/config";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import dotenv from "dotenv";
 import express from "express";
+
+// .env lives at the repo root so backend and frontend read the same file.
+dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "../../.env") });
 import {
   DraftSchema,
   ExtractedOrderSchema,
