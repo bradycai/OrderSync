@@ -35,7 +35,7 @@ export function Sidebar({
           <Icon name="inventory" size={25} />
         </span>
         <span className="brand-name">
-          orderwatch<span className="brand-dot">.</span>
+          OrderSync<span className="brand-dot">.</span>
         </span>
       </a>
       <div className="workspace">
