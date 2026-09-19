@@ -53,7 +53,7 @@ export function SignUp({ onSwitch }: { onSwitch: () => void }) {
   return (
     <AuthLayout
       title="Create your account"
-      subtitle="Set up a login to open the OrderWatch operations dashboard."
+      subtitle="Set up a login to open the OrderSync operations dashboard."
       footer={
         <>
           <span className="fine">Already have an account?</span>{" "}

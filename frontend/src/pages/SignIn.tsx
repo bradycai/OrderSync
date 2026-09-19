@@ -31,7 +31,7 @@ export function SignIn({ onSwitch }: { onSwitch: () => void }) {
       subtitle="Welcome back. Sign in to see orders across every channel."
       footer={
         <>
-          <span className="fine">New to OrderWatch?</span>{" "}
+          <span className="fine">New to OrderSync?</span>{" "}
           <button type="button" className="link" onClick={onSwitch}>
             Create an account
           </button>

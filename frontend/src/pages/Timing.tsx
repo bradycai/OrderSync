@@ -4,7 +4,7 @@ import { formatSeconds, startRun, stopRun } from "../lib/timing";
 import { useStore } from "../store";
 
 /**
- * Records what actually happened during this demo. OrderWatch makes no
+ * Records what actually happened during this demo. OrderSync makes no
  * time-savings claim of its own — the numbers here are whatever you measure.
  */
 export function Timing() {
@@ -41,7 +41,7 @@ export function Timing() {
         <p className="eyebrow">MEASURE YOUR OWN MOMENTUM</p>
         <h1>Demo timer</h1>
         <p className="sub">
-          Time the same task by hand, then with OrderWatch, and compare.
+          Time the same task by hand, then with OrderSync, and compare.
         </p>
       </header>
 

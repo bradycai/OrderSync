@@ -17,8 +17,8 @@ export function AuthLayout({
       <div className="auth-frame">
         <aside className="auth-intro">
           <div className="brand">
-            <span className="brand-mark">OW</span>
-            <div className="brand-name">OrderWatch</div>
+            <span className="brand-mark">OS</span>
+            <div className="brand-name">OrderSync</div>
           </div>
           <div className="auth-intro-copy">
             <p className="auth-eyebrow">A little less busywork.</p>
@@ -34,9 +34,9 @@ export function AuthLayout({
         </aside>
         <main className="auth-card">
         <div className="brand auth-brand">
-          <span className="brand-mark">OW</span>
+          <span className="brand-mark">OS</span>
           <div>
-            <div className="brand-name">OrderWatch</div>
+            <div className="brand-name">OrderSync</div>
             <div className="brand-sub">Operations assistant</div>
           </div>
         </div>

@@ -17,7 +17,6 @@ const titles: Record<View, string> = {
   intake: "Email intake",
   attention: "Needs attention",
 };
-
 export function App() {
   const { status } = useAuth();
   const [authView, setAuthView] = useState<"signin" | "signup">("signin");
@@ -31,11 +30,7 @@ export function App() {
     );
   }
 
-  return (
-    <StoreProvider>
-      <Dashboard />
-    </StoreProvider>
-  );
+  return <StoreProvider><Dashboard /></StoreProvider>;
 }
 
 function Dashboard() {
@@ -49,22 +44,19 @@ function Dashboard() {
     try { localStorage.setItem("orderwatch.sidebarCollapsed", String(next)); } catch { /* Storage is optional. */ }
     return next;
   });
+  const { resetDemo, demoMode, loading, error } = useStore();
   const [resetKey, setResetKey] = useState(0);
   const [notice, setNotice] = useState("");
-  const { resetDemo, demoMode, loading, error } = useStore();
   const now = DEMO_NOW;
-
   useEffect(() => {
     if (!notice) return;
     const timer = window.setTimeout(() => setNotice(""), 3500);
     return () => window.clearTimeout(timer);
   }, [notice]);
-
   const navigate = (next: View) => {
     setView(next);
     window.scrollTo({ top: 0 });
   };
-
   return (
     <div className={`shell${sidebarCollapsed ? " shell-sidebar-collapsed" : ""}`}>
       <Sidebar
@@ -73,10 +65,14 @@ function Dashboard() {
         view={view}
         onNavigate={navigate}
         onReset={async () => {
-          await resetDemo();
-          setResetKey((k) => k + 1);
-          navigate("overview");
-          setNotice("Demo reset. You're back to the original sample data.");
+          try {
+            await resetDemo();
+            setResetKey((k) => k + 1);
+            navigate("overview");
+            setNotice("Demo reset. You're back to the original sample data.");
+          } catch (error) {
+            setNotice(`Could not reset the demo: ${error instanceof Error ? error.message : "Please try again."}`);
+          }
         }}
       />
       <main className="main" id="main-content">
@@ -100,11 +96,7 @@ function Dashboard() {
           </div>
         </div>
         {error && <div className="banner banner-error">{error}</div>}
-        {loading && (
-          <div className="page">
-            <p className="empty">Loading…</p>
-          </div>
-        )}
+        {loading && <div className="page"><p className="empty">Loading…</p></div>}
         {!loading && (
           <div key={resetKey}>
             {view === "overview" && <Overview onNavigate={navigate} />}
