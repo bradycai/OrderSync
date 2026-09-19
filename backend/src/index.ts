@@ -1,10 +1,7 @@
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import dotenv from "dotenv";
+// Must stay first: loads .env before any module reads process.env at load time.
+import "./env";
+import cookieParser from "cookie-parser";
 import express from "express";
-
-// .env lives at the repo root so backend and frontend read the same file.
-dotenv.config({ path: resolve(dirname(fileURLToPath(import.meta.url)), "../../.env") });
 import {
   DraftSchema,
   ExtractedOrderSchema,
@@ -12,10 +9,15 @@ import {
   hasCredentials,
   parseWith,
 } from "./claude";
+import { requireAuth } from "./auth/middleware";
+import { authRoutes } from "./auth/routes";
 import { demoDraft, demoExtract, demoMatch } from "./demoOutputs";
 
 const app = express();
 app.use(express.json({ limit: "1mb" }));
+app.use(cookieParser());
+
+app.use("/api/auth", authRoutes);
 
 const demoMode = () => !hasCredentials();
 
@@ -24,7 +26,7 @@ app.get("/api/status", (_req, res) => {
 });
 
 /** AI step 1 — pull structured order fields out of pasted email text. */
-app.post("/api/extract", async (req, res) => {
+app.post("/api/extract", requireAuth, async (req, res) => {
   const { email } = req.body as { email: string };
   if (!email?.trim()) return res.status(400).json({ error: "email body required" });
 
@@ -45,7 +47,7 @@ app.post("/api/extract", async (req, res) => {
 });
 
 /** AI step 2 — propose a SKU for an unrecognized listing title. */
-app.post("/api/match", async (req, res) => {
+app.post("/api/match", requireAuth, async (req, res) => {
   const { listingTitle, catalog } = req.body as {
     listingTitle: string;
     catalog: { sku: string; title: string; color: string; size: string }[];
@@ -67,7 +69,7 @@ app.post("/api/match", async (req, res) => {
 });
 
 /** AI step 3 — draft the customer message the founder will edit and approve. */
-app.post("/api/draft", async (req, res) => {
+app.post("/api/draft", requireAuth, async (req, res) => {
   const { context } = req.body as { context: string };
 
   if (demoMode()) return res.json({ ...demoDraft(context ?? ""), demoMode: true });

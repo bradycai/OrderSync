@@ -1,3 +1,4 @@
+import { useAuth } from "../auth/AuthProvider";
 import { useStore } from "../store";
 
 export type View = "overview" | "inventory" | "intake" | "attention" | "timing";
@@ -12,6 +13,7 @@ const NAV: { id: View; label: string; hint: string }[] = [
 
 export function Sidebar({ view, onNavigate }: { view: View; onNavigate: (v: View) => void }) {
   const { alerts, resetDemo } = useStore();
+  const { user, signOut } = useAuth();
 
   return (
     <nav className="sidebar">
@@ -41,8 +43,19 @@ export function Sidebar({ view, onNavigate }: { view: View; onNavigate: (v: View
       </ul>
 
       <div className="sidebar-foot">
+        {user && (
+          <div className="account">
+            <div className="account-name">{user.name}</div>
+            <div className="account-email" title={user.email}>
+              {user.email}
+            </div>
+          </div>
+        )}
         <button className="btn btn-ghost" onClick={resetDemo}>
           Reset demo
+        </button>
+        <button className="btn btn-ghost" onClick={signOut}>
+          Sign out
         </button>
         <p className="fine">All data is synthetic. All actions are simulated.</p>
       </div>
