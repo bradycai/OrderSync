@@ -134,4 +134,18 @@ Ship by: 20 Sep 2026
 Items: 2 x Heavyweight Hoodie — Black / M
 Status: unfulfilled`,
   },
+  {
+    label: "Amazon — listing name we don't recognize",
+    body: `From: seller-notifications@amazon.com
+Subject: Sold, ship now: 114-7781220-3390115
+
+Order ID: 114-7781220-3390115
+Buyer: Harun Cetin (hcetin@example.com)
+Placed: 19 Sep 2026, 10:22 UTC
+Ship by: 23 Sep 2026
+
+1 x Corduroy 6-Panel Hat — Navy Blue, One Size
+
+Please confirm shipment in Seller Central.`,
+  },
 ];

@@ -1,11 +1,10 @@
-import type { Alert, InventorySnapshot, Order, Product } from "../types";
+import type { Alert, InventorySnapshot, Order, Product, SuggestedAction } from "../types";
 import { CHANNEL_LABELS } from "../types";
-import { snapshotAll } from "./inventory";
-import { holdsStock } from "./inventory";
+import { holdsStock, snapshotAll } from "./inventory";
 
 /**
  * Alert detection is fully deterministic — no model involvement. The AI only
- * drafts the message copy once an alert exists.
+ * drafts the message copy once an alert already exists.
  */
 export function detectAlerts(
   products: Product[],
@@ -21,24 +20,46 @@ function shortageAlerts(products: Product[], orders: Order[]): Alert[] {
     .map((s) => {
       const product = products.find((p) => p.sku === s.sku)!;
       const short = Math.abs(s.available);
+      const units = (n: number) => `${n} unit${n === 1 ? "" : "s"}`;
       const channels = s.contributingOrderKeys
         .map((k) => orders.find((o) => o.key === k)!)
         .map((o) => CHANNEL_LABELS[o.channel]);
+      const bumped = lastPlaced(orders, s.contributingOrderKeys);
+      const bumpedOrder = orders.find((o) => o.key === bumped)!;
+
+      const actions: SuggestedAction[] = [
+        {
+          type: "message_customer",
+          orderKey: bumped,
+          label: "Draft a delay message",
+          description:
+            `Write to ${bumpedOrder.customerName} — the most recently placed of the ` +
+            `${s.contributingOrderKeys.length} orders, and so the fairest one to hold.`,
+        },
+        {
+          type: "adjust_inventory",
+          sku: s.sku,
+          delta: short,
+          label: `Record a restock of ${units(short)}`,
+          description:
+            `Use this if you have found ${units(short)} that were not counted. ` +
+            `It raises starting stock and clears the shortage outright.`,
+        },
+      ];
+
       return {
         id: `shortage:${s.sku}`,
+        // Re-opens the alert if stock or commitments move after it was handled.
+        signature: `shortage:${s.sku}:${s.startingStock}:${s.committed}`,
         kind: "insufficient_inventory",
         severity: "critical",
-        title: `${short} unit${short === 1 ? "" : "s"} short — ${product.title} ${product.color} / ${product.size}`,
+        title: `${units(short)} short — ${product.title}, ${product.color} / ${product.size}`,
         explanation:
           `${channels.join(", ")} sold ${s.committed} units of ${s.sku} but only ` +
-          `${s.startingStock} are in stock. ${short} unit${short === 1 ? "" : "s"} cannot be fulfilled.`,
+          `${s.startingStock} are in stock. ${units(short)} cannot be fulfilled.`,
         calculation: s,
         relatedOrderKeys: s.contributingOrderKeys,
-        suggestedAction: {
-          type: "message_customer",
-          orderKey: lastPlaced(orders, s.contributingOrderKeys),
-          label: "Draft a delay message for the most recent order",
-        },
+        suggestedActions: actions,
       } satisfies Alert;
     });
 }
@@ -47,20 +68,27 @@ function overdueAlerts(orders: Order[], now: Date): Alert[] {
   return orders
     .filter((o) => holdsStock(o) && new Date(o.shipBy) < now)
     .map((o) => {
-      const hoursLate = Math.round((now.getTime() - new Date(o.shipBy).getTime()) / 3_600_000);
+      const hoursLate = Math.round(
+        (now.getTime() - new Date(o.shipBy).getTime()) / 3_600_000,
+      );
       return {
         id: `overdue:${o.key}`,
+        signature: `overdue:${o.key}:${o.shipBy}`,
         kind: "overdue_shipment",
         severity: hoursLate > 48 ? "critical" : "warning",
-        title: `Overdue — ${CHANNEL_LABELS[o.channel]} ${o.channelOrderId}`,
+        title: `Overdue by ${hoursLate}h — ${CHANNEL_LABELS[o.channel]} ${o.channelOrderId}`,
         explanation:
-          `Shipping deadline passed ${hoursLate}h ago and the order is still awaiting shipment.`,
+          `The shipping deadline passed ${hoursLate} hours ago and this order is ` +
+          `still awaiting shipment.`,
         relatedOrderKeys: [o.key],
-        suggestedAction: {
-          type: "message_customer",
-          orderKey: o.key,
-          label: "Draft an apology + updated ship date",
-        },
+        suggestedActions: [
+          {
+            type: "message_customer",
+            orderKey: o.key,
+            label: "Draft an apology and a new ship date",
+            description: `Write to ${o.customerName} with a realistic updated date.`,
+          },
+        ],
       } satisfies Alert;
     });
 }

@@ -14,6 +14,13 @@ export const CHANNEL_LABELS: Record<Channel, string> = {
 /** Deterministic lifecycle. Canceled orders never hold committed stock. */
 export type OrderStatus = "awaiting_shipment" | "shipped" | "delivered" | "canceled";
 
+export const STATUS_LABELS: Record<OrderStatus, string> = {
+  awaiting_shipment: "Awaiting shipment",
+  shipped: "Shipped",
+  delivered: "Delivered",
+  canceled: "Canceled",
+};
+
 /** A product we actually hold stock for, keyed by our own SKU. */
 export interface Product {
   sku: string;
@@ -38,6 +45,8 @@ export interface ListingMap {
   status: "confirmed" | "pending" | "rejected";
   /** Where the mapping came from, so the UI can label AI suggestions. */
   source: "seed" | "ai" | "manual";
+  /** Model rationale, shown to the founder when confirming an uncertain match. */
+  reasoning?: string;
 }
 
 export interface OrderLine {
@@ -77,6 +86,12 @@ export interface InventorySnapshot {
 
 export interface Alert {
   id: string;
+  /**
+   * Content fingerprint. Approving an action resolves the alert *as it stood*;
+   * if the underlying numbers move afterwards the signature changes and the
+   * alert correctly returns to the queue.
+   */
+  signature: string;
   kind: AlertKind;
   severity: "critical" | "warning";
   title: string;
@@ -85,22 +100,41 @@ export interface Alert {
   /** Deterministic math shown alongside the alert. */
   calculation?: InventorySnapshot;
   relatedOrderKeys: string[];
-  suggestedAction: SuggestedAction;
+  /** First entry is the recommended action; the rest are alternatives. */
+  suggestedActions: SuggestedAction[];
 }
 
 export type SuggestedAction =
-  | { type: "message_customer"; orderKey: string; label: string }
-  | { type: "adjust_inventory"; sku: string; delta: number; label: string }
-  | { type: "confirm_match"; listingMapId: string; label: string };
+  | {
+      type: "message_customer";
+      orderKey: string;
+      label: string;
+      description: string;
+    }
+  | {
+      type: "adjust_inventory";
+      sku: string;
+      delta: number;
+      label: string;
+      description: string;
+    };
 
 /** Every approval is simulated — nothing leaves this machine. */
 export interface ActionRecord {
   id: string;
   alertId: string;
+  /** Signature of the alert at the moment this action was raised. */
+  alertSignature: string;
   action: SuggestedAction;
-  /** Editable draft the founder reviews before approving. */
+  /** Editable draft the founder reviews before approving (message actions). */
+  subject: string;
   draft: string;
+  /** Editable stock correction the founder reviews (inventory actions). */
+  proposedDelta?: number;
+  /** True when the draft came from prepared sample output, not a live model. */
+  demoMode: boolean;
   status: "pending_review" | "approved_simulated" | "dismissed";
+  createdAt: string;
   decidedAt?: string;
 }
 
@@ -126,4 +160,26 @@ export interface ExtractedOrder {
   /** Set by the server when AI credentials are missing. */
   demoMode?: boolean;
   notes?: string;
+}
+
+export interface MatchSuggestion {
+  sku: string | null;
+  confidence: number;
+  reasoning: string;
+  demoMode?: boolean;
+}
+
+export interface DraftMessage {
+  subject: string;
+  body: string;
+  demoMode?: boolean;
+}
+
+/** Transient confirmation shown after a simulated action. */
+export interface Toast {
+  id: string;
+  title: string;
+  body?: string;
+  /** `simulated` renders the explicit "no external action" label. */
+  tone: "simulated" | "info";
 }

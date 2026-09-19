@@ -10,6 +10,8 @@ type Match = z.infer<typeof MatchSuggestionSchema>;
 type Draft = z.infer<typeof DraftSchema>;
 
 export function demoExtract(email: string): Extracted {
+  // TODO: replace with real AI call — set ANTHROPIC_API_KEY and this whole
+  // branch is skipped in favour of the live extraction in server/index.ts.
   const isShopifyDupe = /#?1042/.test(email);
   if (isShopifyDupe) {
     return {
@@ -22,6 +24,19 @@ export function demoExtract(email: string): Extracted {
       status: "awaiting_shipment",
       lines: [{ listingTitle: "Heavyweight Hoodie — Black / M", quantity: 2 }],
       notes: "Repeat notification for an order already in OrderWatch.",
+    };
+  }
+  if (/114-7781220/.test(email)) {
+    return {
+      channel: "amazon",
+      channelOrderId: "114-7781220-3390115",
+      customerName: "Harun Cetin",
+      customerEmail: "hcetin@example.com",
+      placedAt: "2026-09-19T10:22:00Z",
+      shipBy: "2026-09-23T17:00:00Z",
+      status: "awaiting_shipment",
+      lines: [{ listingTitle: "Corduroy 6-Panel Hat — Navy Blue, One Size", quantity: 1 }],
+      notes: "This listing name is not in the mapping table — it will need a SKU match.",
     };
   }
   return {
@@ -41,6 +56,7 @@ export function demoExtract(email: string): Extracted {
 }
 
 export function demoMatch(listingTitle: string): Match {
+  // TODO: replace with real AI call.
   if (/fleece hoodie/i.test(listingTitle)) {
     return {
       sku: "HOODIE-BLK-M",
@@ -48,10 +64,21 @@ export function demoMatch(listingTitle: string): Match {
       reasoning: "‘Premium Fleece Hoodie, Black, Medium’ is probably the same garment as HOODIE-BLK-M, but the fabric wording differs — confirm before it counts against stock.",
     };
   }
+  if (/corduroy|6-panel|hat|cap/i.test(listingTitle)) {
+    return {
+      sku: "CAP-NVY-OS",
+      confidence: 0.68,
+      reasoning:
+        "‘Corduroy 6-Panel Hat — Navy Blue, One Size’ lines up with CAP-NVY-OS on fabric, " +
+        "colour and sizing, but the catalog calls it a cap rather than a 6-panel hat. " +
+        "Below the auto-confirm bar — a human should confirm it.",
+    };
+  }
   return { sku: null, confidence: 0.3, reasoning: "Demo-mode output — no confident match." };
 }
 
 export function demoDraft(context: string): Draft {
+  // TODO: replace with real AI call.
   return {
     subject: "A short delay on your hoodie order",
     body:

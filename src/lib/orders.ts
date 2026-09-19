@@ -32,7 +32,10 @@ export function resolveLine(
   );
   if (!hit) return { sku: null, matchStatus: "unmatched" };
   if (hit.status === "confirmed") return { sku: hit.sku, matchStatus: "matched" };
-  return { sku: null, matchStatus: "pending_review" };
+  if (hit.status === "pending") return { sku: null, matchStatus: "pending_review" };
+  // Rejected: the founder said this is not our product, so it goes back to
+  // being unmatched rather than lingering in the review queue.
+  return { sku: null, matchStatus: "unmatched" };
 }
 
 export function toOrder(extracted: ExtractedOrder, maps: ListingMap[]): Order {
@@ -54,6 +57,22 @@ export function toOrder(extracted: ExtractedOrder, maps: ListingMap[]): Order {
       ...resolveLine(extracted.channel, l.listingTitle, maps),
     })),
   };
+}
+
+/**
+ * Recompute every line's SKU resolution against the current mapping table.
+ * Deterministic and idempotent — running it twice changes nothing. Called
+ * whenever a listing map is confirmed or rejected, so a newly-confirmed match
+ * immediately starts counting toward committed stock.
+ */
+export function reresolveOrders(orders: Order[], maps: ListingMap[]): Order[] {
+  return orders.map((o) => ({
+    ...o,
+    lines: o.lines.map((l) => ({
+      ...l,
+      ...resolveLine(o.channel, l.listingTitle, maps),
+    })),
+  }));
 }
 
 export type ImportOutcome = { orders: Order[]; result: "created" | "updated" };

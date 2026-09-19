@@ -21,9 +21,15 @@ app.get("/api/status", (_req, res) => {
 /** AI step 1 — pull structured order fields out of pasted email text. */
 app.post("/api/extract", async (req, res) => {
   const { email } = req.body as { email: string };
-  if (!email?.trim()) return res.status(400).json({ error: "email body required" });
+  if (!email?.trim()) {
+    res.status(400).json({ error: "email body required" });
+    return;
+  }
 
-  if (demoMode()) return res.json({ ...demoExtract(email), demoMode: true });
+  if (demoMode()) {
+    res.json({ ...demoExtract(email), demoMode: true });
+    return;
+  }
 
   try {
     const out = await parseWith(
@@ -46,7 +52,10 @@ app.post("/api/match", async (req, res) => {
     catalog: { sku: string; title: string; color: string; size: string }[];
   };
 
-  if (demoMode()) return res.json({ ...demoMatch(listingTitle), demoMode: true });
+  if (demoMode()) {
+    res.json({ ...demoMatch(listingTitle), demoMode: true });
+    return;
+  }
 
   try {
     const out = await parseWith(
@@ -65,7 +74,10 @@ app.post("/api/match", async (req, res) => {
 app.post("/api/draft", async (req, res) => {
   const { context } = req.body as { context: string };
 
-  if (demoMode()) return res.json({ ...demoDraft(context ?? ""), demoMode: true });
+  if (demoMode()) {
+    res.json({ ...demoDraft(context ?? ""), demoMode: true });
+    return;
+  }
 
   try {
     const out = await parseWith(
