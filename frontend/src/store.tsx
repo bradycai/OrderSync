@@ -1,4 +1,10 @@
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useState,
+} from "react";
 import type { ReactNode } from "react";
 import {
   DEMO_NOW,
@@ -39,6 +45,7 @@ interface Store {
   setSearch: (s: string) => void;
   importOrder: (o: Order) => "created" | "updated";
   setListingMaps: (m: ListingMap[]) => void;
+  reviewMatch: (id: string, confirmed: boolean) => void;
   setActions: (a: ActionRecord[]) => void;
   setTimings: (t: TimingRun[]) => void;
   resetDemo: () => void;
@@ -49,7 +56,8 @@ const StoreContext = createContext<Store | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>(SEED_PRODUCTS);
   const [orders, setOrders] = useState<Order[]>(SEED_ORDERS);
-  const [listingMaps, setListingMaps] = useState<ListingMap[]>(SEED_LISTING_MAPS);
+  const [listingMaps, setListingMaps] =
+    useState<ListingMap[]>(SEED_LISTING_MAPS);
   const [actions, setActions] = useState<ActionRecord[]>([]);
   const [timings, setTimings] = useState<TimingRun[]>([]);
   const [channelFilter, setChannelFilter] = useState<Channel | "all">("all");
@@ -57,8 +65,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const now = DEMO_NOW;
 
-  const snapshots = useMemo(() => snapshotAll(products, orders), [products, orders]);
-  const alerts = useMemo(() => detectAlerts(products, orders, now), [products, orders, now]);
+  const snapshots = useMemo(
+    () => snapshotAll(products, orders),
+    [products, orders],
+  );
+  const alerts = useMemo(
+    () => detectAlerts(products, orders, now),
+    [products, orders, now],
+  );
 
   const visibleOrders = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -73,15 +87,50 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     });
   }, [orders, channelFilter, search]);
 
-  const importOrder = useCallback((incoming: Order) => {
-    let result: "created" | "updated" = "created";
-    setOrders((prev) => {
-      const out = upsertOrder(prev, incoming);
-      result = out.result;
-      return out.orders;
-    });
-    return result;
-  }, []);
+  const importOrder = useCallback(
+    (incoming: Order) => {
+      const result = orders.some((o) => o.key === incoming.key)
+        ? "updated"
+        : "created";
+      setOrders((prev) => {
+        const out = upsertOrder(prev, incoming);
+        return out.orders;
+      });
+      return result;
+    },
+    [orders],
+  );
+
+  const reviewMatch = (id: string, confirmed: boolean) => {
+    const match = listingMaps.find((m) => m.id === id);
+    if (!match) return;
+    setListingMaps((prev) =>
+      prev.map((m) =>
+        m.id === id
+          ? { ...m, status: confirmed ? "confirmed" : "rejected" }
+          : m,
+      ),
+    );
+    setOrders((prev) =>
+      prev.map((order) =>
+        order.channel !== match.channel
+          ? order
+          : {
+              ...order,
+              lines: order.lines.map((line) =>
+                line.listingTitle.trim().toLowerCase() !==
+                match.listingTitle.trim().toLowerCase()
+                  ? line
+                  : {
+                      ...line,
+                      sku: confirmed ? match.sku : null,
+                      matchStatus: confirmed ? "matched" : "unmatched",
+                    },
+              ),
+            },
+      ),
+    );
+  };
 
   const resetDemo = useCallback(() => {
     setProducts(SEED_PRODUCTS);
@@ -94,13 +143,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value: Store = {
-    products, orders, listingMaps, actions, timings, channelFilter, search, now,
-    snapshots, alerts, visibleOrders,
-    setChannelFilter, setSearch, importOrder, setListingMaps, setActions, setTimings,
+    products,
+    orders,
+    listingMaps,
+    actions,
+    timings,
+    channelFilter,
+    search,
+    now,
+    snapshots,
+    alerts,
+    visibleOrders,
+    setChannelFilter,
+    setSearch,
+    importOrder,
+    setListingMaps,
+    reviewMatch,
+    setActions,
+    setTimings,
     resetDemo,
   };
 
-  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>;
+  return (
+    <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
+  );
 }
 
 export function useStore(): Store {

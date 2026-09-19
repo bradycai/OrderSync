@@ -1,51 +1,116 @@
-import { useStore } from "../store";
-
+﻿import { useStore } from "../store";
+import { CHANNELS, CHANNEL_LABELS } from "../types";
+import { Icon } from "./Icon";
 export type View = "overview" | "inventory" | "intake" | "attention" | "timing";
-
-const NAV: { id: View; label: string; hint: string }[] = [
-  { id: "overview", label: "Overview", hint: "Orders across all channels" },
-  { id: "intake", label: "Import email", hint: "Paste an order notification" },
-  { id: "attention", label: "Needs attention", hint: "Shortages and overdue orders" },
-  { id: "inventory", label: "Inventory", hint: "Stock, committed, available" },
-  { id: "timing", label: "Demo timer", hint: "Manual vs assisted" },
+const NAV: { id: View; label: string }[] = [
+  { id: "overview", label: "Overview" },
+  { id: "inventory", label: "Inventory" },
+  { id: "intake", label: "Email intake" },
+  { id: "attention", label: "Needs attention" },
+  { id: "timing", label: "Demo timer" },
 ];
-
-export function Sidebar({ view, onNavigate }: { view: View; onNavigate: (v: View) => void }) {
-  const { alerts, resetDemo } = useStore();
-
+export function Sidebar({
+  view,
+  onNavigate,
+  onReset,
+}: {
+  view: View;
+  onNavigate: (v: View) => void;
+  onReset: () => void;
+}) {
+  const { alerts } = useStore();
   return (
-    <nav className="sidebar">
-      <div className="brand">
-        <span className="brand-mark">OW</span>
+    <aside className="sidebar">
+      <a
+        className="brand"
+        href="#overview"
+        onClick={(e) => {
+          e.preventDefault();
+          onNavigate("overview");
+        }}
+      >
+        <span className="brand-mark">
+          <Icon name="inventory" size={25} />
+        </span>
+        <span className="brand-name">
+          orderwatch<span className="brand-dot">.</span>
+        </span>
+      </a>
+      <div className="workspace">
+        <span className="workspace-avatar">S</span>
         <div>
-          <div className="brand-name">OrderWatch</div>
-          <div className="brand-sub">Operations assistant</div>
+          <strong>Studio Supply</strong>
+          <span>Founder workspace</span>
         </div>
+        <span className="workspace-caret">⌄</span>
       </div>
-
-      <ul className="nav">
-        {NAV.map((item) => (
-          <li key={item.id}>
-            <button
-              className={view === item.id ? "nav-item active" : "nav-item"}
-              onClick={() => onNavigate(item.id)}
-              title={item.hint}
-            >
-              {item.label}
-              {item.id === "attention" && alerts.length > 0 && (
-                <span className="pill pill-critical">{alerts.length}</span>
-              )}
-            </button>
-          </li>
+      <nav aria-label="Main navigation">
+        <p className="nav-label">WORKSPACE</p>
+        <ul className="nav">
+          {NAV.map((item) => (
+            <li key={item.id}>
+              <button
+                className={`nav-item ${view === item.id ? "active" : ""}`}
+                aria-current={view === item.id ? "page" : undefined}
+                onClick={() => onNavigate(item.id)}
+              >
+                <Icon name={item.id} />
+                <span>{item.label}</span>
+                {item.id === "attention" && alerts.length > 0 && (
+                  <span className="nav-count">{alerts.length}</span>
+                )}
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className="sidebar-channels">
+        <p className="nav-label">
+          YOUR CHANNELS <span>4</span>
+        </p>
+        {CHANNELS.map((c) => (
+          <div className="sidebar-channel" key={c}>
+            <span className={`channel-symbol symbol-${c}`}>
+              {c === "shopify"
+                ? "S"
+                : c === "tiktok"
+                  ? "♪"
+                  : c === "amazon"
+                    ? "a"
+                    : "e"}
+            </span>
+            {CHANNEL_LABELS[c]}
+            <span className="channel-dot" />
+          </div>
         ))}
-      </ul>
-
+        <p className="channel-caption">Sample channels · no live connections</p>
+      </div>
       <div className="sidebar-foot">
-        <button className="btn btn-ghost" onClick={resetDemo}>
+        <div className="demo-card">
+          <Icon name="spark" />
+          <strong>A little help. A clearer day.</strong>
+          <p>
+            Your operations, in one place.
+            <br />
+            Explore with sample data.
+          </p>
+          <button onClick={() => onNavigate("intake")}>
+            Try the demo flow <Icon name="arrow" size={16} />
+          </button>
+        </div>
+        <button className="reset-button" onClick={onReset}>
+          <Icon name="reset" size={16} />
           Reset demo
         </button>
-        <p className="fine">All data is synthetic. All actions are simulated.</p>
+        <div className="profile">
+          <span className="profile-avatar">SS</span>
+          <div>
+            <strong>Studio Supply</strong>
+            <span>Demo workspace</span>
+          </div>
+          <span className="profile-dot" />
+        </div>
       </div>
-    </nav>
+    </aside>
   );
 }
