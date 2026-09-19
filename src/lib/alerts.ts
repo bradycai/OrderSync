@@ -42,7 +42,8 @@ function shortageAlerts(products: Product[], orders: Order[]): Alert[] {
           delta: short,
           label: `Record a restock of ${units(short)}`,
           description:
-            `Use this if you have found ${units(short)} that were not counted. ` +
+            `Use this if you have found ${units(short)} ` +
+            `${short === 1 ? "that was" : "that were"} not counted. ` +
             `It raises starting stock and clears the shortage outright.`,
         },
       ];
