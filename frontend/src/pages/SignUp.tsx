@@ -63,7 +63,7 @@ export function SignUp({ onSwitch }: { onSwitch: () => void }) {
           value={name}
           onChange={setName}
           autoComplete="name"
-          placeholder="Jayden Gajewski"
+          placeholder="Your full name"
           error={fieldError("name")}
           autoFocus
         />
