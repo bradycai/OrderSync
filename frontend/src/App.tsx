@@ -9,7 +9,6 @@ import { Inventory } from "./pages/Inventory";
 import { Overview } from "./pages/Overview";
 import { SignIn } from "./pages/SignIn";
 import { SignUp } from "./pages/SignUp";
-import { Timing } from "./pages/Timing";
 import { StoreProvider, useStore } from "./store";
 
 const titles: Record<View, string> = {
@@ -17,7 +16,6 @@ const titles: Record<View, string> = {
   inventory: "Inventory",
   intake: "Email intake",
   attention: "Needs attention",
-  timing: "Demo timer",
 };
 
 export function App() {
@@ -42,6 +40,15 @@ export function App() {
 
 function Dashboard() {
   const [view, setView] = useState<View>("overview");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem("orderwatch.sidebarCollapsed") === "true"; }
+    catch { return false; }
+  });
+  const toggleSidebar = () => setSidebarCollapsed(current => {
+    const next = !current;
+    try { localStorage.setItem("orderwatch.sidebarCollapsed", String(next)); } catch { /* Storage is optional. */ }
+    return next;
+  });
   const [resetKey, setResetKey] = useState(0);
   const [notice, setNotice] = useState("");
   const { resetDemo, demoMode, loading, error } = useStore();
@@ -59,8 +66,10 @@ function Dashboard() {
   };
 
   return (
-    <div className="shell">
+    <div className={`shell${sidebarCollapsed ? " shell-sidebar-collapsed" : ""}`}>
       <Sidebar
+        collapsed={sidebarCollapsed}
+        onToggle={toggleSidebar}
         view={view}
         onNavigate={navigate}
         onReset={async () => {
@@ -102,7 +111,6 @@ function Dashboard() {
             {view === "intake" && <Intake onNavigate={navigate} />}
             {view === "attention" && <Attention />}
             {view === "inventory" && <Inventory />}
-            {view === "timing" && <Timing />}
           </div>
         )}
         <footer className="app-footer">
