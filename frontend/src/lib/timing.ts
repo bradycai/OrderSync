@@ -1,4 +1,4 @@
-import type { TimingRun } from "../types";
+import type { TimingRun } from "@orderwatch/shared";
 
 /**
  * Lets the founder time the same reconciliation twice during a demo — once by

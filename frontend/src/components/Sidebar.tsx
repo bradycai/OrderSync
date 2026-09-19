@@ -43,15 +43,7 @@ export function Sidebar({ view, onNavigate }: { view: View; onNavigate: (v: View
       </ul>
 
       <div className="sidebar-foot">
-        {user && (
-          <div className="account">
-            <div className="account-name">{user.name}</div>
-            <div className="account-email" title={user.email}>
-              {user.email}
-            </div>
-          </div>
-        )}
-        <button className="btn btn-ghost" onClick={resetDemo}>
+        <button className="btn btn-ghost" onClick={() => void resetDemo()}>
           Reset demo
         </button>
         <button className="btn btn-ghost" onClick={signOut}>

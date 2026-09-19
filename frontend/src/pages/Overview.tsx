@@ -1,8 +1,7 @@
+import { CHANNELS, CHANNEL_LABELS, type OrderStatus } from "@orderwatch/shared";
 import { ChannelBadge } from "../components/ChannelBadge";
 import { StatTile } from "../components/StatTile";
-import { isLow } from "../lib/inventory";
 import { useStore } from "../store";
-import { CHANNELS, CHANNEL_LABELS, type OrderStatus } from "../types";
 
 const STATUS_LABEL: Record<OrderStatus, string> = {
   awaiting_shipment: "Awaiting shipment",
@@ -15,11 +14,16 @@ const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 export function Overview() {
-  const { orders, snapshots, alerts, visibleOrders, channelFilter, setChannelFilter, search, setSearch, now } =
-    useStore();
+  const {
+    orders, inventory, alerts, channelFilter, setChannelFilter, search, setSearch, loading,
+  } = useStore();
 
   const awaiting = orders.filter((o) => o.status === "awaiting_shipment").length;
-  const low = snapshots.filter(isLow).length;
+  const low = inventory.filter((r) => r.isLow || r.isShort).length;
+  // Deadlines are evaluated server-side; reuse the alert set rather than re-deriving.
+  const overdueKeys = new Set(
+    alerts.filter((a) => a.kind === "overdue_shipment").flatMap((a) => a.relatedOrderKeys),
+  );
 
   return (
     <div className="page">
@@ -29,7 +33,7 @@ export function Overview() {
       </header>
 
       <section className="tiles">
-        <StatTile label="Total orders" value={orders.length} />
+        <StatTile label="Orders shown" value={orders.length} />
         <StatTile label="Awaiting shipment" value={awaiting} tone={awaiting ? "warn" : "neutral"} />
         <StatTile label="Products running low" value={low} tone={low ? "warn" : "neutral"} />
         <StatTile
@@ -69,45 +73,34 @@ export function Overview() {
       <table className="table">
         <thead>
           <tr>
-            <th>Order</th>
-            <th>Customer</th>
-            <th>Product</th>
-            <th className="num">Qty</th>
-            <th>Channel</th>
-            <th>Placed</th>
-            <th>Ship by</th>
-            <th>Status</th>
+            <th>Order</th><th>Customer</th><th>Product</th><th className="num">Qty</th>
+            <th>Channel</th><th>Placed</th><th>Ship by</th><th>Status</th>
           </tr>
         </thead>
         <tbody>
-          {visibleOrders.map((o) =>
-            o.lines.map((line, i) => {
-              const overdue = o.status === "awaiting_shipment" && new Date(o.shipBy) < now;
-              return (
-                <tr key={`${o.key}-${i}`}>
-                  <td className="mono">{i === 0 ? o.channelOrderId : ""}</td>
-                  <td>{i === 0 ? o.customerName : ""}</td>
-                  <td>
-                    {line.listingTitle}
-                    {line.matchStatus !== "matched" && (
-                      <span className="pill pill-warn">match pending</span>
-                    )}
-                  </td>
-                  <td className="num">{line.quantity}</td>
-                  <td>{i === 0 && <ChannelBadge channel={o.channel} />}</td>
-                  <td>{fmtDate(o.placedAt)}</td>
-                  <td className={overdue ? "overdue" : undefined}>{fmtDate(o.shipBy)}</td>
-                  <td>
-                    <span className={`status status-${o.status}`}>{STATUS_LABEL[o.status]}</span>
-                  </td>
-                </tr>
-              );
-            }),
+          {orders.map((o) =>
+            o.lines.map((line, i) => (
+              <tr key={`${o.key}-${i}`}>
+                <td className="mono">{i === 0 ? o.channelOrderId : ""}</td>
+                <td>{i === 0 ? o.customerName : ""}</td>
+                <td>
+                  {line.listingTitle}
+                  {line.matchStatus !== "matched" && (
+                    <span className="pill pill-warn">match pending</span>
+                  )}
+                </td>
+                <td className="num">{line.quantity}</td>
+                <td>{i === 0 && <ChannelBadge channel={o.channel} />}</td>
+                <td>{fmtDate(o.placedAt)}</td>
+                <td className={overdueKeys.has(o.key) ? "overdue" : undefined}>
+                  {fmtDate(o.shipBy)}
+                </td>
+                <td><span className={`status status-${o.status}`}>{STATUS_LABEL[o.status]}</span></td>
+              </tr>
+            )),
           )}
-          {visibleOrders.length === 0 && (
-            <tr>
-              <td colSpan={8} className="empty">No orders match that filter.</td>
-            </tr>
+          {!loading && orders.length === 0 && (
+            <tr><td colSpan={8} className="empty">No orders match that filter.</td></tr>
           )}
         </tbody>
       </table>

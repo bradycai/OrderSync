@@ -127,3 +127,106 @@ export interface ExtractedOrder {
   demoMode?: boolean;
   notes?: string;
 }
+
+/* ------------------------------------------------------------------ *
+ * API contract — shared between the Express routes and the UI client.
+ * ------------------------------------------------------------------ */
+
+export interface OrderFilters {
+  channel?: Channel;
+  status?: OrderStatus;
+  /** Matches order id, customer name, or listing title. */
+  q?: string;
+}
+
+/** A line in an import preview, before the founder has confirmed anything. */
+export interface PreviewLine {
+  listingTitle: string;
+  quantity: number;
+  sku: string | null;
+  matchStatus: OrderLine["matchStatus"];
+  /** Present when no confirmed mapping existed and the model proposed one. */
+  suggestion?: {
+    sku: string | null;
+    confidence: number;
+    reasoning: string;
+    /** True when confidence is below the auto-accept bar. */
+    needsConfirmation: boolean;
+  };
+}
+
+/** Response of POST /api/orders/parse-email. Nothing is saved yet. */
+export interface ParsePreview {
+  extracted: ExtractedOrder;
+  key: string;
+  /** "update" means an order with this channel + id already exists. */
+  willResult: "create" | "update";
+  existing: Order | null;
+  lines: PreviewLine[];
+  demoMode: boolean;
+  warnings: string[];
+}
+
+/** Body of POST /api/orders — the reviewed, confirmed order. */
+export interface ConfirmedOrderInput {
+  channel: Channel;
+  channelOrderId: string;
+  customerName: string;
+  customerEmail: string;
+  placedAt: string;
+  shipBy?: string | null;
+  status?: OrderStatus;
+  lines: {
+    listingTitle: string;
+    quantity: number;
+    /** Set when the founder accepted a suggested match. */
+    sku?: string | null;
+  }[];
+}
+
+export interface InventoryRow extends InventorySnapshot {
+  title: string;
+  color: string;
+  size: string;
+  /** Deterministic flags the UI renders directly. */
+  isShort: boolean;
+  isLow: boolean;
+  mappedChannels: Channel[];
+}
+
+/** GET /api/alerts — alerts plus the records that justify them. */
+export interface AlertsResponse {
+  alerts: Alert[];
+  /** Every order referenced by an alert, so the UI needs no second request. */
+  supportingOrders: Order[];
+  generatedAt: string;
+}
+
+/** How the founder chose to resolve an alert. Drives the drafted message. */
+export type Resolution =
+  | "delay_and_apologize"
+  | "offer_refund"
+  | "partial_shipment"
+  | "cancel_and_refund"
+  | "inventory_correction";
+
+export const RESOLUTION_LABELS: Record<Resolution, string> = {
+  delay_and_apologize: "Apologize and give a new ship date",
+  offer_refund: "Offer a full refund",
+  partial_shipment: "Ship what we have now, rest later",
+  cancel_and_refund: "Cancel the order and refund",
+  inventory_correction: "Correct the stock count instead",
+};
+
+export interface DraftRequest {
+  resolution: Resolution;
+  /** Which order the message is addressed to. Defaults to the alert's suggestion. */
+  orderKey?: string;
+}
+
+export interface DemoStatus {
+  demoMode: boolean;
+  model: string;
+  /** Every mutating endpoint is simulated; nothing leaves this machine. */
+  simulated: true;
+}
