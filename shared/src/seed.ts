@@ -1,3 +1,4 @@
+import { EXTRA_ORDERS, EXTRA_LISTING_MAPS } from "./extraSeed";
 import type { ListingMap, Order, Product } from "./types";
 
 /**
@@ -37,6 +38,10 @@ export const SEED_LISTING_MAPS: ListingMap[] = [
   { id: "lm-7", channel: "tiktok", listingTitle: "Cord Cap Navy", sku: "CAP-NVY-OS", confidence: 1, status: "confirmed", source: "seed" },
   { id: "lm-8", channel: "ebay", listingTitle: "Heavy Hoodie Black Large", sku: "HOODIE-BLK-L", confidence: 1, status: "confirmed", source: "seed" },
 ];
+
+for (const mapping of EXTRA_LISTING_MAPS) {
+  if (!SEED_LISTING_MAPS.some(m => m.channel === mapping.channel && m.listingTitle === mapping.listingTitle)) SEED_LISTING_MAPS.push(mapping);
+}
 
 const order = (o: Omit<Order, "key" | "revisions"> & { revisions?: string[] }): Order => ({
   ...o,
@@ -101,6 +106,8 @@ export const SEED_ORDERS: Order[] = [
     lines: [{ listingTitle: "Heavy Hoodie Black Large", quantity: 1, sku: "HOODIE-BLK-L", matchStatus: "matched" }],
   }),
 ];
+
+SEED_ORDERS.push(...EXTRA_ORDERS);
 
 /** Pasteable in the email intake screen. */
 export const SAMPLE_EMAILS: { label: string; body: string }[] = [

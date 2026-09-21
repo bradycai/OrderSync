@@ -7,3 +7,4 @@ export * from "./seed";
 export * from "./inventory";
 export * from "./orders";
 export * from "./alerts";
+export * from "./autoResolve";

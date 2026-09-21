@@ -2,7 +2,7 @@ import type { TimingRun } from "@orderwatch/shared";
 
 /**
  * Lets the founder time the same reconciliation twice during a demo — once by
- * hand, once with OrderWatch — and compare. We record only what was measured
+ * hand, once with OrderSync — and compare. We record only what was measured
  * here; no time-savings figure is claimed anywhere in the product.
  */
 export const startRun = (mode: TimingRun["mode"], label: string): TimingRun => ({

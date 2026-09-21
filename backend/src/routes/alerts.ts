@@ -1,5 +1,6 @@
 import {
   DEMO_NOW,
+  activeAlerts,
   detectAlerts,
   findOrder,
   type ActionRecord,
@@ -9,6 +10,7 @@ import {
 } from "@orderwatch/shared";
 import { Router } from "express";
 import { z } from "zod";
+import { autoResolveWarnings } from "../autoResolve";
 import { draftMessage } from "../ai";
 import { db, nextId } from "../db";
 
@@ -17,7 +19,7 @@ export const alertsRouter: Router = Router();
 /** Fixed clock keeps the demo reproducible — overdue orders stay overdue. */
 const now = () => DEMO_NOW;
 
-export const currentAlerts = (): Alert[] => detectAlerts(db.products, db.orders, now());
+export const currentAlerts = (): Alert[] => activeAlerts(detectAlerts(db.products, db.orders, now()), db.orders, db.actions);
 
 /* ------------------------------------------------------------------ *
  * GET /api/alerts — detection is deterministic; no model involved.
@@ -111,4 +113,15 @@ alertsRouter.post("/:id/draft", async (req, res) => {
   } catch (err) {
     res.status(502).json({ error: `Drafting failed: ${(err as Error).message}` });
   }
+});
+
+let assistantRunning = false;
+/** Explicit button invocation only; all outward actions remain simulated. */
+alertsRouter.post("/auto-resolve", async (_req, res, next) => {
+  if (assistantRunning) return res.status(409).json({ error: "The warning assistant is already running. Please wait." });
+  assistantRunning = true;
+  try {
+    res.json(await autoResolveWarnings(db, now(), (alert, order) => draftMessage(alert, order, "delay_and_apologize")));
+  } catch (error) { next(error); }
+  finally { assistantRunning = false; }
 });

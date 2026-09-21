@@ -102,6 +102,17 @@ export interface ActionRecord {
   draft: string;
   status: "pending_review" | "approved_simulated" | "dismissed";
   decidedAt?: string;
+  /**
+   * Present only when the assistant resolved the warning without a human.
+   * `orderSnapshot` is the serialized order at approval time: a resolved
+   * warning is re-raised once the order it was based on changes.
+   */
+  automation?: {
+    source: "warning_assistant";
+    demoMode: boolean;
+    orderSnapshot: string;
+    alertTitle: string;
+  };
 }
 
 /** Manual vs assisted reconciliation timing, recorded during a live demo. */

@@ -74,6 +74,16 @@ test("API imports, mappings, approvals, stock corrections and reset survive rest
     await request("/demo/reset", {}, 401);
     await request("/auth/signup", { name: "Test", email: "merge-test@example.com", password: "test-password-123" }, 201);
     assert.equal((await request("/auth/me")).user.email, "merge-test@example.com");
+    const beforeAssistant = (await request("/alerts")).alerts;
+    const assistant = await request("/alerts/auto-resolve", {});
+    assert.ok(assistant.results.some((r: any) => r.status === "handled"));
+    const afterAssistant = (await request("/alerts")).alerts;
+    assert.ok(afterAssistant.length < beforeAssistant.length);
+    assert.equal(afterAssistant.filter((a: any) => a.severity === "critical").length,
+      beforeAssistant.filter((a: any) => a.severity === "critical").length);
+    assert.ok((await request("/actions")).actions.some((a: any) => a.automation?.orderSnapshot));
+    assert.ok((await request("/alerts/auto-resolve", {})).results.every((r: any) => r.status === "skipped"));
+    await request("/demo/reset", {});
     const inventory = (await request("/inventory")).inventory;
     const sku = inventory[0].sku;
     const input = { channel: "shopify", channelOrderId: "persistence-test", customerName: "Test", customerEmail: "test@example.com", placedAt: "2026-09-01T00:00:00Z", lines: [{ listingTitle: "Persistence test garment", quantity: 100, sku }] };
