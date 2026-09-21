@@ -50,12 +50,24 @@ app.use((err: Error, _req: Request, res: Response, _next: NextFunction) => {
 
 const port = Number(process.env.API_PORT ?? 8787);
 const server = app.listen(port, () => {
+  const address = server.address();
+  const actualPort = typeof address === "object" && address !== null ? address.port : port;
+
   console.log(`SQLite database: ${databasePath}`);
   console.log(
-    `OrderWatch API on :${(server.address() as { port: number }).port} — ${
+    `OrderWatch API on :${actualPort} — ${
       isDemoMode() ? "DEMO MODE (no ANTHROPIC_API_KEY)" : `live model (${MODEL})`
     }`,
   );
+});
+
+server.on("error", (error: NodeJS.ErrnoException) => {
+  if (error.code === "EADDRINUSE") {
+    console.error(`Port ${port} is already in use. Stop the active process or set API_PORT to a different value.`);
+    process.exit(1);
+  }
+
+  throw error;
 });
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
