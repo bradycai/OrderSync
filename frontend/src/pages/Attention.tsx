@@ -88,7 +88,7 @@ export function Attention() {
   return (
     <div className="page">
       <header className="page-head">
-        <p className="eyebrow">LESS GUESSWORK. CLEAR NEXT STEPS.</p>
+        <p className="eyebrow">ALERTS</p>
         <h1>Needs attention</h1>
         <p className="sub">
           Detected by deterministic rules on the server. Messages are AI-drafted,

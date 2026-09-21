@@ -259,39 +259,6 @@ p {
   margin-top: auto;
   padding-top: 16px;
 }
-.demo-card {
-  border: 1px solid #ffffff18;
-  background: #ffffff05;
-  padding: 15px;
-  border-radius: 9px;
-  color: #c9d6b6;
-}
-.demo-card > svg {
-  margin-bottom: 8px;
-}
-.demo-card strong {
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-}
-.demo-card p {
-  font-size: 12px;
-  line-height: 1.8;
-  color: #afbfaa;
-  margin: 6px 0 12px;
-}
-.demo-card button {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 0;
-  border-top: 1px solid #ffffff13;
-  padding: 11px 0 0;
-  width: 100%;
-  color: #e0eac9;
-  background: none;
-  font-size: 12px;
-}
 .reset-button {
   display: flex;
   align-items: center;
@@ -1568,7 +1535,6 @@ p {
   .workspace,
   .sidebar-channels,
   .sidebar .nav-label,
-  .demo-card,
   .profile {
     display: none;
   }

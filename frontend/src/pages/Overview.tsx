@@ -74,11 +74,9 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
     <div className="page overview-page">
       <header className="page-head head-with-action">
         <div>
-          <p className="eyebrow">YOUR DAILY OPERATIONS, AT A GLANCE</p>
-          <h1>A clear view. A calmer day.</h1>
-          <p className="sub">
-            All your orders, inventory, and next steps. Right here.
-          </p>
+          <p className="eyebrow">OVERVIEW</p>
+          <h1>Operations overview</h1>
+          <p className="sub">Orders, inventory, and alerts.</p>
         </div>
         <button className="btn btn-primary" onClick={() => onNavigate("intake")}>
           <Icon name="intake" size={17} />
@@ -101,7 +99,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
           label="Awaiting shipment"
           value={awaiting}
           tone={awaiting ? "warn" : "neutral"}
-          note="Ready for your next move"
+          note="Awaiting fulfillment"
           icon="intake"
         />
         <StatTile
@@ -115,7 +113,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
           label="Needs attention"
           value={alerts.length}
           tone={alerts.length ? "critical" : "neutral"}
-          note={alerts.length ? "Let's get these sorted" : "You're all caught up"}
+          note={alerts.length ? "Requires review" : "No active alerts"}
           icon="attention"
         />
       </section>
@@ -124,12 +122,12 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
           <div className="focus-copy">
             <span className="section-kicker">
               <span className="attention-dot" />
-              ON YOUR RADAR
+              INVENTORY STATUS
             </span>
             <h2>
               {shortage
-                ? "One product. A few too many orders."
-                : "Your stock is keeping up."}
+                ? "Stock shortage"
+                : "Inventory is available."}
             </h2>
             <p>
               {shortage ? (
@@ -185,7 +183,7 @@ export function Overview({ onNavigate }: { onNavigate: (v: View) => void }) {
         </section>
         <section className="channel-card">
           <div className="section-title">
-            <h2>Across your channels</h2>
+            <h2>Orders by channel</h2>
             <span className="fine">Sample data</span>
           </div>
           {CHANNELS.map((c) => {

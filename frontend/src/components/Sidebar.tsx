@@ -105,18 +105,6 @@ export function Sidebar({
         <p className="channel-caption">Sample channels · no live connections</p>
       </div>
       <div className="sidebar-foot">
-        <div className="demo-card">
-          <Icon name="spark" />
-          <strong>A little help. A clearer day.</strong>
-          <p>
-            Your operations, in one place.
-            <br />
-            Explore with sample data.
-          </p>
-          <button onClick={() => onNavigate("intake")}>
-            Try the demo flow <Icon name="arrow" size={16} />
-          </button>
-        </div>
         <button className="reset-button" title="Reset demo" aria-label="Reset demo" onClick={onReset}>
           <Icon name="reset" size={16} />
           <span className="sidebar-action-label">Reset demo</span>

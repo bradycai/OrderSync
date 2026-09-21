@@ -26,7 +26,6 @@
   .sidebar-collapsed .nav-label,
   .sidebar-collapsed .nav-item-label,
   .sidebar-collapsed .sidebar-channels,
-  .sidebar-collapsed .demo-card,
   .sidebar-collapsed .profile,
   .sidebar-collapsed .sidebar-action-label { display: none; }
   .sidebar-collapsed .nav-item { justify-content: center; position: relative; padding: 14px 0; }

@@ -21,16 +21,16 @@ export function AuthLayout({
             <div className="brand-name">OrderSync</div>
           </div>
           <div className="auth-intro-copy">
-            <p className="auth-eyebrow">A little less busywork.</p>
-            <h2>Every order.<br />One clear picture.</h2>
-            <p>Bring your orders together, keep an eye on stock, and know what needs your attention.</p>
+            <p className="auth-eyebrow">OrderSync</p>
+            <h2>Orders and inventory in one place.</h2>
+            <p>Review incoming orders, stock levels, and alerts from one dashboard.</p>
           </div>
           <div className="auth-workflow" aria-label="Your workflow">
             <div><span>01</span><p>Bring orders together<small>One place to see what’s coming in.</small></p></div>
             <div><span>02</span><p>Catch the exceptions<small>Spot shortages before they become surprises.</small></p></div>
             <div><span>03</span><p>Decide what happens next<small>Review every action. Stay in control.</small></p></div>
           </div>
-          <p className="auth-intro-note">Built for the person behind the business.</p>
+          <p className="auth-intro-note">Sample workspace</p>
         </aside>
         <main className="auth-card">
         <div className="brand auth-brand">
@@ -41,7 +41,7 @@ export function AuthLayout({
           </div>
         </div>
 
-        <p className="auth-eyebrow auth-form-eyebrow">Your operations, organized</p>
+        <p className="auth-eyebrow auth-form-eyebrow">Account</p>
         <h1 className="auth-title">{title}</h1>
         <p className="auth-sub">{subtitle}</p>
 
